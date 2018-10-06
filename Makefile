@@ -1,9 +1,15 @@
-objects = main.o
+out=asnp
+objects = main.o assemble.o
 
-asnp: $(objects)
-	g++ -o asnp $(objects)
+CXX=g++
+CPPFLAGS=-std=c++11
+LDFLAGS=
+
+$(out): $(objects)
+	g++ -o $(out) $(objects) $(CPPFLAGS) $(LDFLAGS)
 
 main.o: assemble.h
+assemble.o: assemble.h
 
 .PHONY: clean
 clean:
