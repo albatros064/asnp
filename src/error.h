@@ -30,6 +30,10 @@ class ConfigError : public AssemblyError {
     public:
         ConfigError(std::string m):AssemblyError("Config Error",m) {}
 };
+class ReferenceError : public AssemblyError {
+    public:
+        ReferenceError(std::string m):AssemblyError("Reference Error",m) {}
+};
 
 }; // namespace asnp
 

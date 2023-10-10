@@ -89,6 +89,8 @@ bool Assembler::assemble() {
             currentLine++;
         }
 
+        processReferences();
+
         std::ofstream(outFile, std::ios::binary).write((const char *) text, textOffset);
     }
     catch (CodeError *e) {
@@ -98,7 +100,7 @@ bool Assembler::assemble() {
         std::string blanks(e->token.character, ' ');
         std::cerr << blanks << '^' << std::endl;
     }
-    catch (ConfigError *e) {
+    catch (AssemblyError *e) {
         std::cerr << e->type << ": " << e->message << std::endl;
     }
 
@@ -139,6 +141,32 @@ std::string _read_word(std::string line, int &index) {
 }
 std::string _read_punctuator(std::string line, int &index) {
     return line.substr(index++, 1);
+}
+
+void _pack_bits(uint8_t *buffer, uint32_t value, int width, int& byte, int& bit) {
+    do {
+        int bitsForByte = 8 - bit;
+        uint32_t mask = 0xff;
+        uint32_t val = value;
+        if (bitsForByte > width) {
+            mask >>= (8 - width);
+            val &= mask;
+            val <<= (bitsForByte - width);
+            bit += width;
+            width = 0;
+        }
+        else {
+            val = (val >> (width - bitsForByte)) & mask;
+            width -= bitsForByte;
+            bit += bitsForByte;
+        }
+        buffer[byte] |= (uint8_t) val;
+
+        if (bit >= 8) { // shouldn't ever be > 8, but meh
+            bit = 0;
+            byte++;
+        }
+    } while (width > 0);
 }
 
 void Assembler::tokenize(std::string line) {
@@ -183,6 +211,7 @@ void Assembler::processDirective(Token &token) {
         tokens.pop_front();
         
         architecture = std::make_unique<arch::Arch>(archArg.content);
+        textStart = architecture->entryPoint;
     }
     else if (!architecture) {
         throw new SyntaxError("architecture not defined", token);
@@ -204,7 +233,7 @@ void Assembler::processDirective(Token &token) {
                 throw new SyntaxError("unexpected token '" + directiveArg.content + "'", directiveArg);
             }
 
-            value = (uint16_t) directiveArg.parseNumber(width);
+            value = (uint16_t) directiveArg.parseNumber(width, NumberSign::AllowSigned);
         }
 
         if (section == DataSection) {
@@ -263,10 +292,10 @@ void Assembler::processInstruction(Token &token) {
 
             uint32_t value = 0;
             arch::Segment seg = segments[segment];
-            if (seg.type == "address") {
+            if (seg.type == "address" || seg.type == "raddress") {
                 if (token.type == TokenType::Number) {
-                    value = token.parseNumber(seg.width);
-std::cout << value << std::endl;
+                    NumberSign sign = seg.type == "address" ? NumberSign::DisallowSigned : NumberSign::ForceSigned;
+                    value = token.parseNumber(seg.width, sign);
                 }
                 else if (token.type == TokenType::Identifier) {
                     value = 0;
@@ -276,7 +305,7 @@ std::cout << value << std::endl;
                     throw new SyntaxError("unexpected token '" + content + "'. Expecting '" + segment + "'", token);
                 }
             }
-            else if (seg.type == "reg" || seg.type == "ereg") {
+            else if (seg.type == "reg") {
                 if (token.type != TokenType::Identifier) {
                     throw new SyntaxError("unexpected token '" + token.content + "'. Expecting '" + segment + "'", token);
                 }
@@ -284,26 +313,31 @@ std::cout << value << std::endl;
                     throw new SyntaxError("unexpected token '" + token.content + "'. Expecting '" + segment + "'", token);
                 }
 
-                if (seg.type == "ereg") {
-                    value = token.parseNumber(seg.width + 1, 1);
-                    if (value & 1) {
-                        throw new SyntaxError("unexpected token '" + content + "'. Expecting '" + segment + "'", token);
-                    }
-                    value >>= 1;
-                }
-                else {
-                    value = token.parseNumber(seg.width, 1);
-                }
+                value = token.parseNumber(seg.width, NumberSign::DisallowSigned, 1);
             }
             else if (seg.type == "signed" || seg.type == "unsigned") {
                 if (token.type != TokenType::Number) {
                     throw new SyntaxError("unexpected token '" + token.content + "'. Expecting '" + segment + "'", token);
                 }
-                value = token.parseNumber(seg.width);
+
+                NumberSign sign = seg.type == "signed" ? NumberSign::ForceSigned : NumberSign::DisallowSigned;
+                value = token.parseNumber(seg.width, sign);
             }
-            else if (seg.type == "symbol") {
-                
+
+            if (seg.alignment > 1) {
+                uint32_t mask = (1 << (seg.alignment - 1)) - 1;
+                if (value & mask) {
+                    throw new SyntaxError("number must be divisible by " + std::to_string(1 << (seg.alignment - 1)), token);
+                }
             }
+
+            if (seg.owidth < seg.width) {
+                value >>= (seg.width - seg.owidth);
+            }
+            else if (seg.owidth > seg.width) {
+                value <<= (seg.owidth - seg.width);
+            }
+
             values[segment] = value;
         }
         if (tokens.size() > 0) {
@@ -313,6 +347,7 @@ std::cout << value << std::endl;
         auto format = architecture->formats[option.format];
         int instructionWidth = format.width / 8;
 
+        // Pack instruction segments into bytes
         uint8_t buffer[16];
         std::fill(std::begin(buffer), std::end(buffer), 0);
         int byte = 0;
@@ -333,30 +368,23 @@ std::cout << value << std::endl;
             }
 
             auto segment = segments[segmentName];
-            int width = segment.width;
-            do {
-                int bitsForByte = 8 - bit;
-                uint32_t mask = 0xff;
-                uint32_t val = value;
-                if (bitsForByte > width) {
-                    mask >>= (8 - width);
-                    val &= mask;
-                    val <<= (bitsForByte - width);
-                    bit += width;
-                    width = 0;
-                }
-                else {
-                    val = (val >> (width - bitsForByte)) & mask;
-                    width -= bitsForByte;
-                    bit += bitsForByte;
-                }
-                buffer[byte] |= (uint8_t) val;
+            if (pendingReferences.contains(segmentName)) {
+                std::string label = pendingReferences[segmentName];
+                Reference reference;
+                reference.offset = textOffset + byte;
+                reference.bit    = bit;
+                reference.width  = segment.owidth;
+                reference.shift  = segment.alignment - 1;
+                reference.relative = segment.type == "raddress" ? textOffset : 0;
 
-                if (bit >= 8) { // shouldn't ever be > 8, but meh
-                    bit = 0;
-                    byte++;
+                if (!references.contains(label)) {
+                    std::list<Reference> rL;
+                    references[label] = rL;
                 }
-            } while (width > 0);
+                references[label].push_back(reference);
+            }
+
+            _pack_bits(buffer, value, segment.owidth, byte, bit);
         }
 
         for (int i = 0; i < instructionWidth; i++) {
@@ -373,7 +401,44 @@ void Assembler::processLabel(Token &token) {
         throw new SyntaxError("duplicate label '" + token.content + "'", token);
     }
 
-    labels[token.content] = std::pair<Section, uint64_t>(section, section == DataSection ? dataOffset : textOffset);
+    labels[token.content] = std::pair<Section, uint16_t>(section, section == DataSection ? dataOffset : textOffset);
+}
+
+void Assembler::processReferences() {
+    for (auto iter = references.begin(); iter != references.end(); iter++) {
+        std::string label = iter->first;
+        if (!labels.contains(label)) {
+            throw new ReferenceError("undefined reference to '" + label + "'");
+        }
+
+        auto deref = labels[label];
+        uint32_t value;
+        if (deref.first == Section::TextSection) {
+            value = textStart + deref.second;
+        }
+        else {
+            value = dataStart + deref.second;
+        }
+
+        for (Reference ref: iter->second) {
+            int byte = ref.offset;
+            int bit = ref.bit;
+
+            uint32_t modifiedValue = value;
+            if (ref.relative != 0) {
+                modifiedValue = deref.second - ref.relative;
+            }
+            if (ref.shift > 0) {
+                modifiedValue >> ref.shift;
+            }
+
+            /*if (modifiedValue != modifiedValue & ((1 << ref.width) - 1)) {
+                throw new ReferenceError("reference to '" + label + "' out of encoding bounds");
+            }*/
+
+            _pack_bits(text, modifiedValue, ref.width, byte, bit);
+        }
+    }
 }
 
 Token::Token(std::string token, int start): content(token), character(start), error(false) {
@@ -406,7 +471,7 @@ Token::Token(std::string token, int start): content(token), character(start), er
     }
 }
 
-uint32_t Token::parseNumber(int maxBits, int skip) {
+uint32_t Token::parseNumber(int maxBits, NumberSign sign, int skip) {
     auto str = content.substr(skip);
     if (str == "0" || str == "-0") {
         return 0;
@@ -418,6 +483,9 @@ uint32_t Token::parseNumber(int maxBits, int skip) {
     if (str[0] == '-') {
         negative = true;
         offset++;
+        if (sign == NumberSign::DisallowSigned) {
+            throw new SyntaxError("number out of range", *this);
+        }
     }
     else if (str[0] == '0') {
         offset++;
@@ -454,7 +522,7 @@ uint32_t Token::parseNumber(int maxBits, int skip) {
                 value += ch - 'a' + 10;
             }
             else {
-                throw new ParseError("malformed number '" + content + "'", *this);
+                throw new ParseError("malformed number", *this);
             }
         }
         else if (base == 10) {
@@ -463,7 +531,7 @@ uint32_t Token::parseNumber(int maxBits, int skip) {
                 value += ch - '0';
             }
             else {
-                throw new ParseError("malformed number '" + content + "'", *this);
+                throw new ParseError("malformed number", *this);
             }
         }
         else if (base == 8) {
@@ -472,25 +540,34 @@ uint32_t Token::parseNumber(int maxBits, int skip) {
                 value += ch - '0';
             }
             else {
-                throw new ParseError("malformed number '" + content + "'", *this);
+                throw new ParseError("malformed number", *this);
             }
         }
         else {
             value <<= 1;
             value += ch - '0';
             if (ch != '0' && ch != '1') {
-                throw new ParseError("malformed number '" + content + "'", *this);
+                throw new ParseError("malformed number", *this);
             }
         }
 
         bitsCount = 32 - std::countl_zero(value);
-        if (bitsCount > maxBits || (negative && bitsCount >= maxBits)) {
+        if (bitsCount > maxBits) {
+            // actually out of bits range
+            throw new SyntaxError("number out of range", *this);
+        }
+        if (sign != NumberSign::DisallowSigned && negative && value > 1 << (maxBits - 1)) {
+            // negative values < -128 (for 8 bits)
+            throw new SyntaxError("number out of range", *this);
+        }
+        if (sign == NumberSign::ForceSigned && !negative && value > (1 << (maxBits - 1)) - 1) {
+            // signed values > 127 (for 8 bits)
             throw new SyntaxError("number out of range", *this);
         }
     }
 
     if (bitsCount == 0) {
-        throw new ParseError("malformed number '" + content + "'", *this);
+        throw new ParseError("malformed number", *this);
     }
 
     if (negative) {

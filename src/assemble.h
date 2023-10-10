@@ -24,8 +24,10 @@ enum Section {
 class Reference {
     public:
         uint16_t offset;
+        uint8_t bit;
         int width;
         int shift;
+        uint32_t relative;
 };
 
 class Assembler {
@@ -63,6 +65,7 @@ class Assembler {
         void processDirective(Token &);
         void processInstruction(Token &);
         void processLabel(Token &);
+        void processReferences();
 };
 
 }; // namespace asnp

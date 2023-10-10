@@ -1,6 +1,7 @@
 dataWidth = 16;
 addressWidth = 16;
 addressableWidth = 16;
+entryPoint = 0xf000;
 
 segments = (
     {

@@ -15,6 +15,8 @@ class Segment {
         std::string name;
         std::string type;
         int width;
+        int owidth;
+        int alignment;
 };
 class Format {
     public:
@@ -41,6 +43,7 @@ class Arch {
         int dataWidth;
         int addressWidth;
         int addressableWidth;
+        uint32_t entryPoint;
 };
 
 }; // namespace arch
