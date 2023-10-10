@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
 
     //std::cout << "Assembling '" << inFile << "' into '" << outFile << "'." << std::endl;
 
-    Assembler assembler(inFile, outFile);
+    asnp::Assembler assembler(inFile, outFile);
     if (!assembler.assemble()) {
         return -1;
     }

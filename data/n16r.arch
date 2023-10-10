@@ -1,0 +1,285 @@
+dataWidth = 16;
+addressWidth = 32;
+addressableWidth = 8;
+
+segments = (
+    {
+        name = "opcode";
+        width = 4;
+        type = "const";
+    },
+    {
+        name = "dreg";
+        width = 3;
+        type = "reg";
+    },
+    {
+        name = "dreg2";
+        width = 2;
+        type = "ereg";
+    },
+    {
+        name = "sreg";
+        width = 3;
+        type = "reg";
+    },
+    {
+        name = "sreg2";
+        width = 2;
+        type = "ereg";
+    },
+    {
+        name = "breg";
+        width = 2;
+        type: "ereg";
+    },
+    {
+        name = "function";
+        width = 6;
+        type = "const";
+    },
+    {
+        name = "function1";
+        width = 1;
+        type = "const";
+    },
+    {
+        name = "i8u";
+        width = 8;
+        type = "unsigned";
+    },
+    {
+        name = "i8s";
+        width = 8;
+        type = "signed";
+    },
+    {
+        name = "i7";
+        width = 7;
+        type = "signed";
+    },
+    {
+        name = "i28";
+        width = 28;
+        type = "symbol";
+    },
+    {
+        name = "i16";
+        width = 16;
+        type = "rsymbol";
+    }
+);
+
+formats = (
+    {
+        name = "R";
+        width = 16;
+        segments = [ "opcode", "dreg", "sreg", "f6" ];
+    },
+    {
+        name = "I";
+        width = 16;
+        segments = [ "opcode", "dreg", "f1", "i8s|i8u" ];
+    },
+    {
+        name = "M";
+        width = 16;
+        segments = [ "opcode", "dreg", "breg", "i7" ];
+    },
+    {
+        name = "J";
+        width = 32;
+        segments = [ "opcode", "i28" ];
+    },
+    {
+        name = "B";
+        width = 32;
+        segments = [ "opcode", "dreg", "sreg", "f6", "i16" ];
+    }
+);
+
+instructions = (
+    {
+        mnemonic = "mov";
+        format = "R";
+        opcode = 0;
+        function = 0;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "xch";
+        format = "R";
+        opcode = 0;
+        function = 2;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "xcha";
+        format = "R";
+        opcode = 0;
+        function = 3;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "mfa";
+        format = "R";
+        opcode = 0;
+        function = 4;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "mta";
+        format = "R";
+        opcode = 0;
+        function = 5;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "add";
+        format = "R";
+        opcode = 0;
+        function = 8;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "addu";
+        format = "R";
+        opcode = 0;
+        function = 9;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "sub";
+        format = "R";
+        opcode = 0;
+        function = 10;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "subu";
+        format = "R";
+        opcode = 0;
+        function = 11;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "addd";
+        format = "R";
+        opcode = 0;
+        function = 12;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "addud";
+        format = "R";
+        opcode = 0;
+        function = 13;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "subd";
+        format = "R";
+        opcode = 0;
+        function = 14;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "subud";
+        format = "R";
+        opcode = 0;
+        function = 15;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "addiud";
+        format = "I";
+        opcode = 1;
+        function1 = 0;
+        segments = [ "dreg", ":,", "i8u" ];
+    },
+    {
+        mnemonic = "subiud";
+        format = "I";
+        opcode = 1;
+        function1 = 1;
+        segments = [ "dreg", ":,", "i8u" ];
+    },
+
+    {
+        mnemonic = "and";
+        format = "R";
+        opcode = 0;
+        function = 16;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "or";
+        format = "R";
+        opcode = 0;
+        function = 17;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "xor";
+        format = "R";
+        opcode = 0;
+        function = 18;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "nor";
+        format = "R";
+        opcode = 0;
+        function = 19;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "slt";
+        format = "R";
+        opcode = 0;
+        function = 20;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "sltu";
+        format = "R";
+        opcode = 0;
+        function = 21;
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+
+    {
+        mnemonic = "jr";
+        format = "R";
+        opcode = 0;
+        function = 56;
+        sreg = 0;
+        segments = [ "dreg" ];
+    },
+    {
+        mnemonic = "jalr";
+        format = "R";
+        opcode = 0;
+        function = 57;
+        sreg = 0;
+        segments = [ "dreg" ];
+    },
+    {
+        mnemonic = "jal";
+        format = "J";
+        opcode = 7;
+        segments = [ "i28" ];
+    },
+    {
+        mnemonic = "j";
+        format = "J";
+        opcode = 15;
+        segments = [ "i28" ];
+    },
+    {
+        mnemonic = "lb";
+        format = "M";
+        opcode = "2";
+        segments = [ "dreg", ":,", "i7", ":(", "breg", ":)" ];
+    }
+);

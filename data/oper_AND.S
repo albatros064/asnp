@@ -1,3 +1,4 @@
+.arch subleq
 .data
 ; scratch space - reset to zero when done
 Z0: .word 0
@@ -19,6 +20,7 @@ C15:  .word 15 ; 0x000f
 
 .text
 oper_AND:
+    subleq 0x1234, 0x5678, 0x9012
     subleq C15,T1                 ; set our loop counter to -15
                                   ;   (we'll count up and stop the loop at 0 => 1)
   oper_AND_top:
