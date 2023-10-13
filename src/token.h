@@ -15,7 +15,7 @@ enum TokenType {
 };
 
 enum NumberSign {
-    DisallowSigned, //    0 - 255
+    ForceUnsigned,  //    0 - 255
     AllowSigned,    // -128 - 255
     ForceSigned,    // -128 - 127
 };
@@ -29,7 +29,7 @@ class Token {
         bool error;
         int character;
 
-        uint32_t parseNumber(int, NumberSign sign = NumberSign::DisallowSigned, int skip = 0);
+        uint32_t parseNumber(int, NumberSign sign = NumberSign::ForceUnsigned, int skip = 0);
     private:
 };
 

@@ -89,9 +89,18 @@ bool Assembler::assemble() {
             currentLine++;
         }
 
+        if (dataOffset > 0) {
+            dataStart = textStart + textOffset;
+        }
+
         processReferences();
 
-        std::ofstream(outFile, std::ios::binary).write((const char *) text, textOffset);
+        auto out = std::ofstream(outFile, std::ios::binary);
+        out.write((const char *) text, textOffset);
+        if (dataOffset > 0) {
+            out.write((const char *) data, dataOffset);
+        }
+        //std::ofstream(outFile, std::ios::binary).write((const char *) text, textOffset);
     }
     catch (CodeError *e) {
         std::cerr << e->type << ": " << e->message;
@@ -216,6 +225,37 @@ void Assembler::processDirective(Token &token) {
     else if (!architecture) {
         throw new SyntaxError("architecture not defined", token);
     }
+    else if (token.content == ".org" || token.content == ".origin") {
+        if (tokens.empty()) {
+            throw new SyntaxError("missing argument for directive '" + token.content + "'", token);
+        }
+
+        Token directiveArg = tokens.front();
+        tokens.pop_front();
+
+        if (directiveArg.type != TokenType::Number) {
+            throw new SyntaxError("unexpected token '" + directiveArg.content + "'", directiveArg);
+        }
+        uint32_t value = directiveArg.parseNumber(32, NumberSign::ForceUnsigned);
+
+        if (section == DataSection) {
+            throw new SyntaxError("data segment may not be manually located (for now)", directiveArg);
+        }
+        else {
+            if (textOffset == 0) {
+                textStart = value;
+            }
+            else if (value < textStart) {
+                throw new SyntaxError("invalid offset '" + directiveArg.content + "'", directiveArg);
+            }
+            else if (value - textStart > SECTION_MAX_SIZE) {
+                throw new SyntaxError("text segment size exceeded", directiveArg);
+            }
+            else {
+                textOffset = value - textStart;
+            }
+        }
+    }
     else if (token.content == ".data") {
         section = DataSection;
     }
@@ -225,6 +265,7 @@ void Assembler::processDirective(Token &token) {
     else if (token.content == ".byte" || token.content == ".word") {
         uint32_t value = 0;
         int width = token.content == ".byte" ? 8 : 16;
+        int bytes = width >> 1;
         if (!tokens.empty()) {
             Token directiveArg = tokens.front();
             tokens.pop_front();
@@ -237,12 +278,20 @@ void Assembler::processDirective(Token &token) {
         }
 
         if (section == DataSection) {
+            if (dataOffset + bytes >= SECTION_MAX_SIZE) {
+                throw new SyntaxError("data segment size exceeded", token);
+            }
+
             data[dataOffset++] = (uint8_t) (value & 0xff);
             if (width > 8) {
                 data[dataOffset++] = (uint8_t) ((value >> 8) & 0xff);
             }
         }
         else {
+            if (textOffset + bytes >= SECTION_MAX_SIZE) {
+                throw new SyntaxError("text segment size exceeded", token);
+            }
+
             text[textOffset++] = (uint8_t) (value & 0xff);
             if (width > 8) {
                 text[textOffset++] = (uint8_t) ((value >> 8) & 0xff);
@@ -294,7 +343,7 @@ void Assembler::processInstruction(Token &token) {
             arch::Segment seg = segments[segment];
             if (seg.type == "address" || seg.type == "raddress") {
                 if (token.type == TokenType::Number) {
-                    NumberSign sign = seg.type == "address" ? NumberSign::DisallowSigned : NumberSign::ForceSigned;
+                    NumberSign sign = seg.type == "address" ? NumberSign::ForceUnsigned : NumberSign::ForceSigned;
                     value = token.parseNumber(seg.width, sign);
                 }
                 else if (token.type == TokenType::Identifier) {
@@ -313,14 +362,14 @@ void Assembler::processInstruction(Token &token) {
                     throw new SyntaxError("unexpected token '" + token.content + "'. Expecting '" + segment + "'", token);
                 }
 
-                value = token.parseNumber(seg.width, NumberSign::DisallowSigned, 1);
+                value = token.parseNumber(seg.width, NumberSign::ForceUnsigned, 1);
             }
             else if (seg.type == "signed" || seg.type == "unsigned") {
                 if (token.type != TokenType::Number) {
                     throw new SyntaxError("unexpected token '" + token.content + "'. Expecting '" + segment + "'", token);
                 }
 
-                NumberSign sign = seg.type == "signed" ? NumberSign::ForceSigned : NumberSign::DisallowSigned;
+                NumberSign sign = seg.type == "signed" ? NumberSign::ForceSigned : NumberSign::ForceUnsigned;
                 value = token.parseNumber(seg.width, sign);
             }
 
@@ -347,6 +396,10 @@ void Assembler::processInstruction(Token &token) {
         auto format = architecture->formats[option.format];
         int instructionWidth = format.width / 8;
 
+        if (instructionWidth + textOffset >= SECTION_MAX_SIZE) {
+            throw new SyntaxError("text segment size exceeded", token);
+        }
+
         // Pack instruction segments into bytes
         uint8_t buffer[16];
         std::fill(std::begin(buffer), std::end(buffer), 0);
@@ -365,6 +418,9 @@ void Assembler::processInstruction(Token &token) {
                 else {
                     value = std::stoi(defaultValue);
                 }
+            }
+            else {
+                continue;
             }
 
             auto segment = segments[segmentName];
@@ -429,12 +485,8 @@ void Assembler::processReferences() {
                 modifiedValue = deref.second - ref.relative;
             }
             if (ref.shift > 0) {
-                modifiedValue >> ref.shift;
+                modifiedValue >>= ref.shift;
             }
-
-            /*if (modifiedValue != modifiedValue & ((1 << ref.width) - 1)) {
-                throw new ReferenceError("reference to '" + label + "' out of encoding bounds");
-            }*/
 
             _pack_bits(text, modifiedValue, ref.width, byte, bit);
         }
@@ -483,7 +535,7 @@ uint32_t Token::parseNumber(int maxBits, NumberSign sign, int skip) {
     if (str[0] == '-') {
         negative = true;
         offset++;
-        if (sign == NumberSign::DisallowSigned) {
+        if (sign == NumberSign::ForceUnsigned) {
             throw new SyntaxError("number out of range", *this);
         }
     }
@@ -556,7 +608,7 @@ uint32_t Token::parseNumber(int maxBits, NumberSign sign, int skip) {
             // actually out of bits range
             throw new SyntaxError("number out of range", *this);
         }
-        if (sign != NumberSign::DisallowSigned && negative && value > 1 << (maxBits - 1)) {
+        if (sign != NumberSign::ForceUnsigned && negative && value > 1 << (maxBits - 1)) {
             // negative values < -128 (for 8 bits)
             throw new SyntaxError("number out of range", *this);
         }

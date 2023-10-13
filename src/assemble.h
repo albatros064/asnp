@@ -8,6 +8,8 @@
 #include "arch.h"
 #include "token.h"
 
+#define SECTION_MAX_SIZE 0x10000
+
 namespace asnp {
 
 enum LineState {
@@ -53,8 +55,8 @@ class Assembler {
         uint16_t dataOffset;
         uint16_t textOffset;
 
-        uint8_t data[0x10000];
-        uint8_t text[0x10000];
+        uint8_t data[SECTION_MAX_SIZE];
+        uint8_t text[SECTION_MAX_SIZE];
         
 
         std::map<std::string, std::pair<Section, uint16_t>> labels;

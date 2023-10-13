@@ -22,6 +22,11 @@ segments = (
         type = "reg";
     },
     {
+        name = "dregp";
+        width = 3;
+        alignment = 2;
+    },
+    {
         name = "sreg";
         width = 3;
         type = "reg";
@@ -32,6 +37,11 @@ segments = (
         owidth = 2;
         alignment = 2;
         type = "reg";
+    },
+    {
+        name = "sregp";
+        width = 3;
+        alignment = 2;
     },
     {
         name = "breg";
@@ -61,6 +71,12 @@ segments = (
         type = "signed";
     },
     {
+        name = "shamt";
+        width = 4;
+        owidth = 8;
+        type = "unsigned";
+    },
+    {
         name = "i7";
         width = 7;
         type = "signed";
@@ -85,12 +101,12 @@ formats = (
     {
         name = "R";
         width = 16;
-        segments = [ "opcode", "dreg", "sreg", "f6" ];
+        segments = [ "opcode", "dreg", "dregp", "sreg", "sregp", "function" ];
     },
     {
         name = "I";
         width = 16;
-        segments = [ "opcode", "dreg", "f1", "i8s|i8u" ];
+        segments = [ "opcode", "dreg", "dregp", "function1", "i8s", "i8u" ];
     },
     {
         name = "M";
@@ -105,7 +121,7 @@ formats = (
     {
         name = "B";
         width = 32;
-        segments = [ "opcode", "dreg", "sreg", "f6", "i16" ];
+        segments = [ "opcode", "dreg", "sreg", "function", "i16" ];
     }
 );
 
@@ -145,12 +161,20 @@ instructions = (
         function = "5";
         segments = [ "dreg", ":,", "sreg" ];
     },
+
     {
         mnemonic = "add";
         format = "R";
         opcode = "0";
         function = "8";
         segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "addi";
+        format = "I";
+        opcode = "10";
+        function = "0";
+        segments = [ "dreg", ":,", "i8s" ];
     },
     {
         mnemonic = "addu";
@@ -160,11 +184,25 @@ instructions = (
         segments = [ "dreg", ":,", "sreg" ];
     },
     {
+        mnemonic = "addiu";
+        format = "I";
+        opcode = "10";
+        function = "1";
+        segments = [ "dreg", ":,", "i8u" ];
+    },
+    {
         mnemonic = "sub";
         format = "R";
         opcode = "0";
         function = "10";
         segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "subi";
+        format = "I";
+        opcode = "11";
+        function = "0";
+        segments = [ "dreg", ":,", "i8s" ];
     },
     {
         mnemonic = "subu";
@@ -174,46 +212,54 @@ instructions = (
         segments = [ "dreg", ":,", "sreg" ];
     },
     {
+        mnemonic = "subiu";
+        format = "I";
+        opcode = "11";
+        function = "1";
+        segments = [ "dreg", ":,", "i8u" ];
+    },
+
+    {
         mnemonic = "addd";
         format = "R";
         opcode = "0";
         function = "12";
-        segments = [ "dreg", ":,", "sreg" ];
+        segments = [ "dregp", ":,", "sregp" ];
     },
     {
         mnemonic = "addud";
         format = "R";
         opcode = "0";
         function = "13";
-        segments = [ "dreg", ":,", "sreg" ];
+        segments = [ "dregp", ":,", "sregp" ];
     },
     {
         mnemonic = "subd";
         format = "R";
         opcode = "0";
         function = "14";
-        segments = [ "dreg", ":,", "sreg" ];
+        segments = [ "dregp", ":,", "sregp" ];
     },
     {
         mnemonic = "subud";
         format = "R";
         opcode = "0";
         function = "15";
-        segments = [ "dreg", ":,", "sreg" ];
+        segments = [ "dregp", ":,", "sregp" ];
     },
     {
         mnemonic = "addiud";
         format = "I";
         opcode = "1";
         function1 = "0";
-        segments = [ "dreg", ":,", "i8u" ];
+        segments = [ "dregp", ":,", "i8u" ];
     },
     {
         mnemonic = "subiud";
         format = "I";
         opcode = "1";
         function1 = "1";
-        segments = [ "dreg", ":,", "i8u" ];
+        segments = [ "dregp", ":,", "i8u" ];
     },
 
     {
@@ -224,11 +270,25 @@ instructions = (
         segments = [ "dreg", ":,", "sreg" ];
     },
     {
+        mnemonic = "andi";
+        format = "I";
+        opcode = "12";
+        function = "0";
+        segments = [ "dreg", ":,", "i8u" ];
+    },
+    {
         mnemonic = "or";
         format = "R";
         opcode = "0";
         function = "17";
         segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "ori";
+        format = "I";
+        opcode = "12";
+        function = "1";
+        segments = [ "dreg", ":,", "i8u" ];
     },
     {
         mnemonic = "xor";
@@ -238,12 +298,56 @@ instructions = (
         segments = [ "dreg", ":,", "sreg" ];
     },
     {
+        mnemonic = "xori";
+        format = "I";
+        opcode = "13";
+        function = "0";
+        segments = [ "dreg", ":,", "i8u" ];
+    },
+    {
         mnemonic = "nor";
         format = "R";
         opcode = "0";
         function = "19";
         segments = [ "dreg", ":,", "sreg" ];
     },
+    {
+        mnemonic = "lui";
+        format = "I";
+        opcode = "13";
+        function = "1";
+        segments = [ "dreg", ":,", "i8u" ];
+    },
+
+    {
+        mnemonic = "shl";
+        format = "I";
+        opcode = "14";
+        function = "0";
+        segments = [ "dreg", ":,", "shamt" ];
+    },
+    {
+        mnemonic = "shra";
+        format = "I";
+        opcode = "15";
+        function = "0";
+        segments = [ "dreg", ":,", "shamt" ];
+    },
+    {
+        mnemonic = "shr";
+        format = "I";
+        opcode = "15";
+        function = "1";
+        segments = [ "dreg", ":,", "shamt" ];
+    },
+    {
+        mnemonic = "shfr";
+        format = "R";
+        opcode = "0";
+        function = "26";
+        segments = [ "dreg", ":,", "sreg" ];
+    },
+
     {
         mnemonic = "slt";
         format = "R";
@@ -257,6 +361,45 @@ instructions = (
         opcode = "0";
         function = "21";
         segments = [ "dreg", ":,", "sreg" ];
+    },
+    {
+        mnemonic = "slti";
+        format = "I";
+        opcode = "16";
+        function = "0";
+        segments = [ "dreg", ":,", "i8s" ];
+    },
+    {
+        mnemonic = "sltiu";
+        format = "I";
+        opcode = "16";
+        function = "1";
+        segments = [ "dreg", ":,", "i8s" ];
+    },
+
+    {
+        mnemonic = "lb";
+        format = "M";
+        opcode = "2";
+        segments = [ "dreg", ":,", "i7", ":(", "breg", ":)" ];
+    },
+    {
+        mnemonic = "lw";
+        format = "M";
+        opcode = "3";
+        segments = [ "dreg", ":,", "i7", ":(", "breg", ":)" ];
+    },
+    {
+        mnemonic = "sb";
+        format = "M";
+        opcode = "4";
+        segments = [ "dreg", ":,", "i7", ":(", "breg", ":)" ];
+    },
+    {
+        mnemonic = "sw";
+        format = "M";
+        opcode = "5";
+        segments = [ "dreg", ":,", "i7", ":(", "breg", ":)" ];
     },
 
     {
@@ -287,10 +430,47 @@ instructions = (
         opcode = "15";
         segments = [ "i28" ];
     },
+
     {
-        mnemonic = "lb";
-        format = "M";
-        opcode = "2";
-        segments = [ "dreg", ":,", "i7", ":(", "breg", ":)" ];
+        mnemonic = "beq";
+        format = "B";
+        opcode = "6";
+        function = "0";
+        segments = [ "dreg", ":,", "sreg", ":,", "i16" ];
+    },
+    {
+        mnemonic = "bne";
+        format = "B";
+        opcode = "6";
+        function = "1";
+        segments = [ "dreg", ":,", "sreg", ":,", "i16" ];
+    },
+    {
+        mnemonic = "bgt";
+        format = "B";
+        opcode = "6";
+        function = "2";
+        segments = [ "dreg", ":,", "sreg", ":,", "i16" ];
+    },
+    {
+        mnemonic = "ble";
+        format = "B";
+        opcode = "6";
+        function = "3";
+        segments = [ "dreg", ":,", "sreg", ":,", "i16" ];
+    },
+    {
+        mnemonic = "blt";
+        format = "B";
+        opcode = "6";
+        function = "4";
+        segments = [ "dreg", ":,", "sreg", ":,", "i16" ];
+    },
+    {
+        mnemonic = "bge";
+        format = "B";
+        opcode = "6";
+        function = "5";
+        segments = [ "dreg", ":,", "sreg", ":,", "i16" ];
     }
 );
