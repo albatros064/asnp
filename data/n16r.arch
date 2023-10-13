@@ -172,8 +172,8 @@ instructions = (
     {
         mnemonic = "addi";
         format = "I";
-        opcode = "10";
-        function = "0";
+        opcode = "8";
+        function1 = "0";
         segments = [ "dreg", ":,", "i8s" ];
     },
     {
@@ -186,8 +186,8 @@ instructions = (
     {
         mnemonic = "addiu";
         format = "I";
-        opcode = "10";
-        function = "1";
+        opcode = "8";
+        function1 = "1";
         segments = [ "dreg", ":,", "i8u" ];
     },
     {
@@ -201,7 +201,7 @@ instructions = (
         mnemonic = "subi";
         format = "I";
         opcode = "11";
-        function = "0";
+        function1 = "0";
         segments = [ "dreg", ":,", "i8s" ];
     },
     {
@@ -215,7 +215,7 @@ instructions = (
         mnemonic = "subiu";
         format = "I";
         opcode = "11";
-        function = "1";
+        function1 = "1";
         segments = [ "dreg", ":,", "i8u" ];
     },
 
@@ -272,8 +272,8 @@ instructions = (
     {
         mnemonic = "andi";
         format = "I";
-        opcode = "12";
-        function = "0";
+        opcode = "10";
+        function1 = "0";
         segments = [ "dreg", ":,", "i8u" ];
     },
     {
@@ -286,8 +286,8 @@ instructions = (
     {
         mnemonic = "ori";
         format = "I";
-        opcode = "12";
-        function = "1";
+        opcode = "10";
+        function1 = "1";
         segments = [ "dreg", ":,", "i8u" ];
     },
     {
@@ -300,8 +300,8 @@ instructions = (
     {
         mnemonic = "xori";
         format = "I";
-        opcode = "13";
-        function = "0";
+        opcode = "11";
+        function1 = "0";
         segments = [ "dreg", ":,", "i8u" ];
     },
     {
@@ -314,30 +314,30 @@ instructions = (
     {
         mnemonic = "lui";
         format = "I";
-        opcode = "13";
-        function = "1";
+        opcode = "11";
+        function1 = "1";
         segments = [ "dreg", ":,", "i8u" ];
     },
 
     {
         mnemonic = "shl";
         format = "I";
-        opcode = "14";
-        function = "0";
+        opcode = "12";
+        function1 = "0";
         segments = [ "dreg", ":,", "shamt" ];
     },
     {
         mnemonic = "shra";
         format = "I";
-        opcode = "15";
-        function = "0";
+        opcode = "13";
+        function1 = "0";
         segments = [ "dreg", ":,", "shamt" ];
     },
     {
         mnemonic = "shr";
         format = "I";
-        opcode = "15";
-        function = "1";
+        opcode = "13";
+        function1 = "1";
         segments = [ "dreg", ":,", "shamt" ];
     },
     {
@@ -365,15 +365,15 @@ instructions = (
     {
         mnemonic = "slti";
         format = "I";
-        opcode = "16";
-        function = "0";
+        opcode = "14";
+        function1 = "0";
         segments = [ "dreg", ":,", "i8s" ];
     },
     {
         mnemonic = "sltiu";
         format = "I";
-        opcode = "16";
-        function = "1";
+        opcode = "14";
+        function1 = "1";
         segments = [ "dreg", ":,", "i8s" ];
     },
 
@@ -415,7 +415,7 @@ instructions = (
         format = "R";
         opcode = "0";
         function = "57";
-        sreg = 0;
+        sreg = "0";
         segments = [ "dreg" ];
     },
     {
