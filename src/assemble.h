@@ -7,6 +7,7 @@
 
 #include "arch.h"
 #include "token.h"
+#include "error.h"
 
 #define SECTION_MAX_SIZE 0x10000
 
@@ -17,10 +18,10 @@ enum LineState {
     ActionState,
     DoneState
 };
-enum Section {
-    DataSection,
-    TextSection,
-    NoSection
+enum Segment {
+    DataSegment,
+    TextSegment,
+    NoSegment
 };
 
 class Reference {
@@ -30,6 +31,16 @@ class Reference {
         int width;
         int shift;
         uint32_t relative;
+};
+
+class InstructionCandidate {
+    public:
+        arch::Instruction instruction;
+        std::map<std::string, uint32_t> values;
+        std::map<std::string, std::string> pendingReferences;
+
+        int matchedTokens;
+        SyntaxError *error;
 };
 
 class Assembler {
@@ -45,7 +56,7 @@ class Assembler {
         int currentLine;
         std::string line;
 
-        Section section;
+        Segment segment;
         LineState lineState;
         std::list<Token> tokens;
         std::unique_ptr<arch::Arch> architecture;
@@ -59,7 +70,7 @@ class Assembler {
         uint8_t text[SECTION_MAX_SIZE];
         
 
-        std::map<std::string, std::pair<Section, uint16_t>> labels;
+        std::map<std::string, std::pair<Segment, uint16_t>> labels;
         std::map<std::string, std::list<Reference>> references;
 
         void tokenize(std::string);

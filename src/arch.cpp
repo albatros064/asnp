@@ -19,25 +19,27 @@ Arch::Arch(std::string name) {
         configRoot.lookupValue("addressableWidth", addressableWidth);
         configRoot.lookupValue("entryPoint", entryPoint);
 
-        const libconfig::Setting& csegments = configRoot["segments"];
+        const libconfig::Setting& cfragments = configRoot["fragments"];
         const libconfig::Setting& cformats = configRoot["formats"];
         const libconfig::Setting& cinstructions = configRoot["instructions"];
 
-        int segmentCount = csegments.getLength();
-        for (int i = 0; i < segmentCount; i++) {
-            const libconfig::Setting& csegment = csegments[i];
-            Segment segment;
+        int fragmentCount = cfragments.getLength();
+        for (int i = 0; i < fragmentCount; i++) {
+            const libconfig::Setting& cfragment = cfragments[i];
+            Fragment fragment;
 
-            csegment.lookupValue("name", segment.name);
-            csegment.lookupValue("type", segment.type);
-            csegment.lookupValue("width", segment.width);
+            cfragment.lookupValue("name", fragment.name);
+            cfragment.lookupValue("type", fragment.type);
+            cfragment.lookupValue("width", fragment.width);
 
-            segment.alignment = 1;
-            segment.owidth = segment.width;
-            csegment.lookupValue("owidth", segment.owidth);
-            csegment.lookupValue("alignment", segment.alignment);
+            fragment.alignment = 1;
+            fragment.owidth = fragment.width;
+            fragment.offset = 0;
+            cfragment.lookupValue("owidth", fragment.owidth);
+            cfragment.lookupValue("alignment", fragment.alignment);
+            cfragment.lookupValue("offset", fragment.offset);
 
-            segments[segment.name] = segment;
+            fragments[fragment.name] = fragment;
         }
 
         int formatCount = cformats.getLength();
@@ -47,10 +49,10 @@ Arch::Arch(std::string name) {
             cformat.lookupValue("name", format.name);
             cformat.lookupValue("width", format.width);
 
-            const libconfig::Setting& cfsegments = cformat["segments"];
-            int fSegCount = cfsegments.getLength();
+            const libconfig::Setting& cffragments = cformat["fragments"];
+            int fSegCount = cffragments.getLength();
             for (int j = 0; j < fSegCount; j++) {
-                format.segments.push_back(cfsegments[j]);
+                format.fragments.push_back(cffragments[j]);
             }
 
             formats[format.name] = format;
@@ -63,17 +65,17 @@ Arch::Arch(std::string name) {
             cinstruction.lookupValue("mnemonic", instruction.mnemonic);
             cinstruction.lookupValue("format", instruction.format);
 
-            const libconfig::Setting& cisegments = cinstruction["segments"];
-            int fSegCount = cisegments.getLength();
+            const libconfig::Setting& cifragments = cinstruction["fragments"];
+            int fSegCount = cifragments.getLength();
             for (int j = 0; j < fSegCount; j++) {
-                instruction.segments.push_back(cisegments[j]);
+                instruction.fragments.push_back(cifragments[j]);
             }
 
             if (!formats.contains(instruction.format)) {
                 throw new ConfigError("unrecognized instruction format '" + instruction.format + "'");
             }
             Format format = formats[instruction.format];
-            for (std::string seg: format.segments) {
+            for (std::string seg: format.fragments) {
                 if (cinstruction.exists(seg)) {
                     std::string segName;
                     cinstruction.lookupValue(seg, segName);

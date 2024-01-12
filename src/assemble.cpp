@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <fstream>
 #include <bit>
+#include <vector>
 #include <ctype.h>
 
 #include "error.h"
@@ -26,7 +27,7 @@ bool Assembler::assemble() {
 
     try {
         currentLine = 1;
-        section = NoSection;
+        segment = NoSegment;
 
         char lineBuffer[LENGTH_LINEBUFFER];
         while (!reader.eof()) {
@@ -50,7 +51,7 @@ bool Assembler::assemble() {
                         processDirective(token);
                         lineState = DoneState;
                     }
-                    else if (section == NoSection) {
+                    else if (segment == NoSegment) {
                         throw new SyntaxError("unexpected token '" + token.content + "'", token);
                     }
                     else if (token.type == Label) {
@@ -70,7 +71,7 @@ bool Assembler::assemble() {
                         processDirective(token);
                         lineState = DoneState;
                     }
-                    else if (section == NoSection) {
+                    else if (segment == NoSegment) {
                         throw new SyntaxError("unexpected token '" + token.content + "'", token);
                     }
                     else if (token.type == Identifier) {
@@ -236,10 +237,10 @@ void Assembler::processDirective(Token &token) {
         if (directiveArg.type != TokenType::Number) {
             throw new SyntaxError("unexpected token '" + directiveArg.content + "'", directiveArg);
         }
-        uint32_t value = directiveArg.parseNumber(32, NumberSign::ForceUnsigned);
+        uint32_t value = directiveArg.parseNumber(32, 0,  NumberSign::ForceUnsigned);
 
-        if (section == DataSection) {
-            throw new SyntaxError("data segment may not be manually located (for now)", directiveArg);
+        if (segment == DataSegment) {
+            throw new SyntaxError("data fragment may not be manually located (for now)", directiveArg);
         }
         else {
             if (textOffset == 0) {
@@ -249,18 +250,26 @@ void Assembler::processDirective(Token &token) {
                 throw new SyntaxError("invalid offset '" + directiveArg.content + "'", directiveArg);
             }
             else if (value - textStart > SECTION_MAX_SIZE) {
-                throw new SyntaxError("text segment size exceeded", directiveArg);
+                throw new SyntaxError("text fragment size exceeded", directiveArg);
             }
             else {
                 textOffset = value - textStart;
             }
         }
     }
-    else if (token.content == ".data") {
-        section = DataSection;
-    }
-    else if (token.content == ".text") {
-        section = TextSection;
+    else if (token.content == ".segment") {
+        Token newSegment = tokens.front();
+        tokens.pop_front();
+
+        if (newSegment.content == "text") {
+            segment = TextSegment;
+        }
+        else if (newSegment.content == "data") {
+            segment = DataSegment;
+        }
+        else {
+            throw new SyntaxError("unrecognized segment '" + newSegment.content + "'", newSegment);
+        }
     }
     else if (token.content == ".byte" || token.content == ".word") {
         uint32_t value = 0;
@@ -274,12 +283,12 @@ void Assembler::processDirective(Token &token) {
                 throw new SyntaxError("unexpected token '" + directiveArg.content + "'", directiveArg);
             }
 
-            value = (uint16_t) directiveArg.parseNumber(width, NumberSign::AllowSigned);
+            value = (uint16_t) directiveArg.parseNumber(width, 0, NumberSign::AllowSigned);
         }
 
-        if (section == DataSection) {
+        if (segment == DataSegment) {
             if (dataOffset + bytes >= SECTION_MAX_SIZE) {
-                throw new SyntaxError("data segment size exceeded", token);
+                throw new SyntaxError("data fragment size exceeded", token);
             }
 
             data[dataOffset++] = (uint8_t) (value & 0xff);
@@ -289,7 +298,7 @@ void Assembler::processDirective(Token &token) {
         }
         else {
             if (textOffset + bytes >= SECTION_MAX_SIZE) {
-                throw new SyntaxError("text segment size exceeded", token);
+                throw new SyntaxError("text fragment size exceeded", token);
             }
 
             text[textOffset++] = (uint8_t) (value & 0xff);
@@ -307,111 +316,143 @@ void Assembler::processInstruction(Token &token) {
         throw new SyntaxError("unexpected identifier '" + token.content + "'", token);
     }
 
-    auto segments = architecture->segments;
-    auto options = architecture->instructions[token.content];
+    auto fragments = architecture->fragments;
 
-    for (auto option: options) {
-        if (option.segments.size() != tokens.size()) {
+    std::vector<InstructionCandidate> candidates;
+    for (auto option: architecture->instructions[token.content]) {
+        if (option.fragments.size() != tokens.size()) {
             continue;
         }
 
-        std::map<std::string, uint32_t> values;
-        std::map<std::string, std::string> pendingReferences;
+        InstructionCandidate candidate;
+        candidate.matchedTokens = -1;
+        candidate.instruction = option;
+        candidates.push_back(candidate);
+    }
 
-        for (std::string segment: option.segments) {
-            bool needPunctuator = false;
-            if (segment[0] == ':') {
-                segment = segment.substr(1);
-                needPunctuator = true;
-            }
-            Token token = tokens.front();
-            std::string content = token.content;
-            tokens.pop_front();
+    int tokenCount = tokens.size();
+    for (int t = 0; t < tokenCount; t++) {
+        auto token = tokens.front();
+        tokens.pop_front();
+        std::string content = token.content;
 
-            if (needPunctuator) {
-                if (token.type != TokenType::Punctuator) {
-                    throw new SyntaxError("unexpected token '" + content + "'. Expecting '" + segment + "'", token);
-                }
-                if (token.content != segment) {
-                    throw new SyntaxError("unexpected punctuator '" + content + "'. Expecting '" + segment + "'", token);
-                }
-                // Punctuator matches. Next token.
+        for (int c = 0; c < candidates.size(); c++) {
+            auto candidate = candidates[c];
+            if (candidate.matchedTokens >= 0) {
                 continue;
             }
 
-            uint32_t value = 0;
-            arch::Segment seg = segments[segment];
-            if (seg.type == "address" || seg.type == "raddress") {
-                if (token.type == TokenType::Number) {
-                    NumberSign sign = seg.type == "address" ? NumberSign::ForceUnsigned : NumberSign::ForceSigned;
-                    value = token.parseNumber(seg.width, sign);
-                }
-                else if (token.type == TokenType::Identifier) {
-                    value = 0;
-                    pendingReferences[segment] = content;
-                }
-                else {
-                    throw new SyntaxError("unexpected token '" + content + "'. Expecting '" + segment + "'", token);
-                }
-            }
-            else if (seg.type == "reg") {
-                if (token.type != TokenType::Identifier) {
-                    throw new SyntaxError("unexpected token '" + token.content + "'. Expecting '" + segment + "'", token);
-                }
-                if (content[0] != '$') {
-                    throw new SyntaxError("unexpected token '" + token.content + "'. Expecting '" + segment + "'", token);
-                }
+            auto fragment = candidate.instruction.fragments[t];
 
-                value = token.parseNumber(seg.width, NumberSign::ForceUnsigned, 1);
-            }
-            else if (seg.type == "signed" || seg.type == "unsigned") {
-                if (token.type != TokenType::Number) {
-                    throw new SyntaxError("unexpected token '" + token.content + "'. Expecting '" + segment + "'", token);
-                }
-
-                NumberSign sign = seg.type == "signed" ? NumberSign::ForceSigned : NumberSign::ForceUnsigned;
-                value = token.parseNumber(seg.width, sign);
+            bool needPunctuator = false;
+            if (fragment[0] == ':') {
+                fragment = fragment.substr(1);
+                needPunctuator = true;
             }
 
-            if (seg.alignment > 1) {
-                uint32_t mask = (1 << (seg.alignment - 1)) - 1;
-                if (value & mask) {
-                    throw new SyntaxError("number must be divisible by " + std::to_string(1 << (seg.alignment - 1)), token);
+            try {
+                if (needPunctuator) {
+                    if (token.type != TokenType::Punctuator) {
+                        throw new SyntaxError("unexpected token '" + content + "'. Expecting '" + fragment + "'", token);
+                    }
+                    if (token.content != fragment) {
+                        throw new SyntaxError("unexpected punctuator '" + content + "'. Expecting '" + fragment + "'", token);
+                    }
+                    // Punctuator matches. Next token.
+                    continue;
                 }
-            }
 
-            if (seg.owidth < seg.width) {
-                value >>= (seg.width - seg.owidth);
-            }
-            else if (seg.owidth > seg.width) {
-                value <<= (seg.owidth - seg.width);
-            }
+                uint32_t value = 0;
+                auto seg = fragments[fragment];
+                if (seg.type == "address" || seg.type == "raddress") {
+                    if (token.type == TokenType::Number) {
+                        NumberSign sign = seg.type == "address" ? NumberSign::ForceUnsigned : NumberSign::ForceSigned;
+                        value = token.parseNumber(seg.width, 0, sign);
+                    }
+                    else if (token.type == TokenType::Identifier) {
+                        value = 0;
+                        candidates[c].pendingReferences[fragment] = content;
+                    }
+                    else {
+                        throw new SyntaxError("unexpected token '" + content + "'. Expecting '" + fragment + "'", token);
+                    }
+                }
+                else if (seg.type == "reg") {
+                    if (token.type != TokenType::Identifier) {
+                        throw new SyntaxError("unexpected token '" + content + "'. Expecting '" + fragment + "'", token);
+                    }
+                    if (content[0] != '$') {
+                        throw new SyntaxError("unexpected token '" + content + "'. Expecting '" + fragment + "'", token);
+                    }
 
-            values[segment] = value;
+                    value = token.parseNumber(seg.width, seg.offset, NumberSign::ForceUnsigned, 1);
+                }
+                else if (seg.type == "signed" || seg.type == "unsigned") {
+                    if (token.type != TokenType::Number) {
+                        throw new SyntaxError("unexpected token '" + content + "'. Expecting '" + fragment + "'", token);
+                    }
+
+                    NumberSign sign = seg.type == "signed" ? NumberSign::ForceSigned : NumberSign::ForceUnsigned;
+                    value = token.parseNumber(seg.width, 0, sign);
+                }
+
+                if (seg.alignment > 1) {
+                    uint32_t mask = (1 << (seg.alignment - 1)) - 1;
+                    if (value & mask) {
+                        throw new SyntaxError("number must be divisible by " + std::to_string(1 << (seg.alignment - 1)), token);
+                    }
+                }
+
+                if (seg.owidth < seg.width) {
+                    value >>= (seg.width - seg.owidth);
+                }
+                else if (seg.owidth > seg.width) {
+                    value <<= (seg.owidth - seg.width);
+                }
+
+                candidates[c].values[fragment] = value;
+            }
+            catch (SyntaxError *e) {
+                candidates[c].error = e;
+                candidates[c].matchedTokens = t;
+            }
         }
-        if (tokens.size() > 0) {
-            throw new SyntaxError("trailing token '" + token.content + "'", tokens.front());
+    }
+
+    int maxMatchedTokens = -1;
+    auto error = new SyntaxError("unresolved instruction variant", token);
+    for (auto candidate: candidates) {
+        if (candidate.matchedTokens >= 0) {
+            if (candidate.matchedTokens > maxMatchedTokens) {
+                maxMatchedTokens = candidate.matchedTokens;
+                error = candidate.error;
+            }
+            continue;
         }
+
+        auto values = candidate.values;
+        auto pendingReferences = candidate.pendingReferences;
+        auto option = candidate.instruction;
 
         auto format = architecture->formats[option.format];
         int instructionWidth = format.width / 8;
 
         if (instructionWidth + textOffset >= SECTION_MAX_SIZE) {
-            throw new SyntaxError("text segment size exceeded", token);
+            throw new SyntaxError("text fragment size exceeded", token);
         }
 
-        // Pack instruction segments into bytes
+        // Pack instruction fragments into bytes
         uint8_t buffer[16];
         std::fill(std::begin(buffer), std::end(buffer), 0);
         int byte = 0;
         int bit = 0;
-        for (auto segmentName: format.segments) {
+        for (auto fragmentName: format.fragments) {
             uint32_t value;
-            if (values.contains(segmentName)) {
-                value = values[segmentName];
+            if (values.contains(fragmentName)) {
+                value = values[fragmentName];
             }
-            else if (option.defaults.contains(segmentName)) {
-                auto defaultValue = option.defaults[segmentName];
+            else if (option.defaults.contains(fragmentName)) {
+                auto defaultValue = option.defaults[fragmentName];
                 if (defaultValue == "%next%") {
                     value = textStart + textOffset + instructionWidth;
                 }
@@ -423,15 +464,15 @@ void Assembler::processInstruction(Token &token) {
                 continue;
             }
 
-            auto segment = segments[segmentName];
-            if (pendingReferences.contains(segmentName)) {
-                std::string label = pendingReferences[segmentName];
+            auto fragment = fragments[fragmentName];
+            if (pendingReferences.contains(fragmentName)) {
+                std::string label = pendingReferences[fragmentName];
                 Reference reference;
                 reference.offset = textOffset + byte;
                 reference.bit    = bit;
-                reference.width  = segment.owidth;
-                reference.shift  = segment.alignment - 1;
-                reference.relative = segment.type == "raddress" ? textOffset : 0;
+                reference.width  = fragment.owidth;
+                reference.shift  = fragment.alignment - 1;
+                reference.relative = fragment.type == "raddress" ? textOffset : 0;
 
                 if (!references.contains(label)) {
                     std::list<Reference> rL;
@@ -440,7 +481,7 @@ void Assembler::processInstruction(Token &token) {
                 references[label].push_back(reference);
             }
 
-            _pack_bits(buffer, value, segment.owidth, byte, bit);
+            _pack_bits(buffer, value, fragment.owidth, byte, bit);
         }
 
         for (int i = 0; i < instructionWidth; i++) {
@@ -450,14 +491,14 @@ void Assembler::processInstruction(Token &token) {
         return;
     }
 
-    throw new SyntaxError("unresolved instruction variant", token);
+    throw error;
 }
 void Assembler::processLabel(Token &token) {
     if (labels.contains(token.content)) {
         throw new SyntaxError("duplicate label '" + token.content + "'", token);
     }
 
-    labels[token.content] = std::pair<Section, uint16_t>(section, section == DataSection ? dataOffset : textOffset);
+    labels[token.content] = std::pair<Segment, uint16_t>(segment, segment == DataSegment ? dataOffset : textOffset);
 }
 
 void Assembler::processReferences() {
@@ -469,7 +510,7 @@ void Assembler::processReferences() {
 
         auto deref = labels[label];
         uint32_t value;
-        if (deref.first == Section::TextSection) {
+        if (deref.first == Segment::TextSegment) {
             value = textStart + deref.second;
         }
         else {
@@ -523,10 +564,24 @@ Token::Token(std::string token, int start): content(token), character(start), er
     }
 }
 
-uint32_t Token::parseNumber(int maxBits, NumberSign sign, int skip) {
+uint32_t Token::parseNumber(int maxBits, int subtract, NumberSign sign, int skip) {
     auto str = content.substr(skip);
     if (str == "0" || str == "-0") {
-        return 0;
+        uint32_t value = 0 - subtract;
+        int bitsCount = 32 - std::countl_zero(value);
+        if (bitsCount > maxBits) {
+            // actually out of bits range
+            throw new SyntaxError("number out of range", *this);
+        }
+        if (sign != NumberSign::ForceUnsigned && (value) > 1 << (maxBits - 1)) {
+            // negative values < -128 (for 8 bits)
+            throw new SyntaxError("number out of range", *this);
+        }
+        if (sign == NumberSign::ForceSigned && (value) > (1 << (maxBits - 1)) - 1) {
+            // signed values > 127 (for 8 bits)
+            throw new SyntaxError("number out of range", *this);
+        }
+        return value - subtract;
     }
 
     int offset = 0;
@@ -604,22 +659,39 @@ uint32_t Token::parseNumber(int maxBits, NumberSign sign, int skip) {
         }
 
         bitsCount = 32 - std::countl_zero(value);
-        if (bitsCount > maxBits) {
-            // actually out of bits range
-            throw new SyntaxError("number out of range", *this);
-        }
-        if (sign != NumberSign::ForceUnsigned && negative && value > 1 << (maxBits - 1)) {
-            // negative values < -128 (for 8 bits)
-            throw new SyntaxError("number out of range", *this);
-        }
-        if (sign == NumberSign::ForceSigned && !negative && value > (1 << (maxBits - 1)) - 1) {
-            // signed values > 127 (for 8 bits)
-            throw new SyntaxError("number out of range", *this);
+        if (bitsCount >= 32) {
+            // we exit out if we hit the limit...
+            if (i < str.length() - 1) {
+                throw new SyntaxError("malformed number ", *this);
+            }
+            break;
         }
     }
 
+    if (sign == NumberSign::ForceUnsigned) {
+        if (negative) {
+            throw new SyntaxError("number out of range0", *this);
+        }
+
+        value -= subtract;
+        bitsCount = 32 - std::countl_zero(value);
+    }
+
+    if (bitsCount > maxBits) {
+        // actually out of bits range
+        throw new SyntaxError("number out of range1", *this);
+    }
+    if (sign != NumberSign::ForceUnsigned && negative && value > 1 << (maxBits - 1)) {
+        // negative values < -128 (for 8 bits)
+        throw new SyntaxError("number out of range2", *this);
+    }
+    if (sign == NumberSign::ForceSigned && !negative && value > (1 << (maxBits - 1)) - 1) {
+        // signed values > 127 (for 8 bits)
+        throw new SyntaxError("number out of range3", *this);
+    }
+
     if (bitsCount == 0) {
-        throw new ParseError("malformed number", *this);
+        //throw new ParseError("malformed number", *this);
     }
 
     if (negative) {

@@ -29,7 +29,7 @@ class Token {
         bool error;
         int character;
 
-        uint32_t parseNumber(int, NumberSign sign = NumberSign::ForceUnsigned, int skip = 0);
+        uint32_t parseNumber(int, int, NumberSign sign = NumberSign::ForceUnsigned, int skip = 0);
     private:
 };
 
