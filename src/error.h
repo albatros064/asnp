@@ -34,6 +34,10 @@ class ReferenceError : public AssemblyError {
     public:
         ReferenceError(std::string m):AssemblyError("Reference Error",m) {}
 };
+class NestedError : public AssemblyError {
+    public:
+        NestedError(std::string m):AssemblyError("Nested Error", m) {}
+};
 
 }; // namespace asnp
 

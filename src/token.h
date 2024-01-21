@@ -9,6 +9,7 @@ enum TokenType {
     Label,
     Identifier,
     Directive,
+    String,
     Number,
     Punctuator,
     Unknown

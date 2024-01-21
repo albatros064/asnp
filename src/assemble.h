@@ -4,12 +4,12 @@
 #include <string>
 #include <list>
 #include <memory>
+#include <set>
 
 #include "arch.h"
+#include "segment.h"
 #include "token.h"
 #include "error.h"
-
-#define SECTION_MAX_SIZE 0x10000
 
 namespace asnp {
 
@@ -17,20 +17,6 @@ enum LineState {
     LabelState,
     ActionState,
     DoneState
-};
-enum Segment {
-    DataSegment,
-    TextSegment,
-    NoSegment
-};
-
-class Reference {
-    public:
-        uint16_t offset;
-        uint8_t bit;
-        int width;
-        int shift;
-        uint32_t relative;
 };
 
 class InstructionCandidate {
@@ -45,37 +31,29 @@ class InstructionCandidate {
 
 class Assembler {
     public:
-        Assembler(std::string, std::string);
+        Assembler(std::string);
         virtual ~Assembler();
 
-        bool assemble();
+        bool assemble(std::string, std::string);
+        bool link();
     private:
-        std::string inFile;
         std::string outFile;
 
         int currentLine;
         std::string line;
+        std::list<int> lineStack;
 
-        Segment segment;
         LineState lineState;
         std::list<Token> tokens;
         std::unique_ptr<arch::Arch> architecture;
 
-        uint32_t dataStart;
-        uint32_t textStart;
-        uint16_t dataOffset;
-        uint16_t textOffset;
-
-        uint8_t data[SECTION_MAX_SIZE];
-        uint8_t text[SECTION_MAX_SIZE];
-        
-
-        std::map<std::string, std::pair<Segment, uint16_t>> labels;
-        std::map<std::string, std::list<Reference>> references;
+        std::map<std::string, std::shared_ptr<Segment>> segments;
+        std::shared_ptr<Segment> segment;
+        std::map<std::string, std::shared_ptr<Segment>> labels;
 
         void tokenize(std::string);
         
-        void processDirective(Token &);
+        void processDirective(Token &, std::string);
         void processInstruction(Token &);
         void processLabel(Token &);
         void processReferences();

@@ -1,7 +1,25 @@
 dataWidth = 16;
 addressWidth = 32;
 addressableWidth = 8;
-entryPoint = 0xfe0000;
+
+segments = (
+    {
+        name = "ktext";
+        start = 0xfe0000;
+        size = 65536;
+        fill = true;
+        ephemeral = false;
+        readOnly = true;
+    },
+    {
+        name = "kmem";
+        start = 0xfc0000;
+        size = 65536;
+        fill = false;
+        ephemeral = true;
+        readOnly = false;
+    }
+);
 
 fragments = (
     {
@@ -212,6 +230,13 @@ instructions = (
         fragments = [ "dreg0", ":,", "sreg0" ];
     },
     {
+        mnemonic = "mov";
+        format = "R";
+        opcode = "0";
+        function = "1";
+        fragments = [ "dreg4", ":,", "sreg4" ];
+    },
+    {
         mnemonic = "xch";
         format = "R";
         opcode = "0";
@@ -223,41 +248,62 @@ instructions = (
         format = "R";
         opcode = "0";
         function = "3";
-        fragments = [ "dreg0", ":,", "sreg1" ];
-    },
-    {
-        mnemonic = "xch";
-        format = "R";
-        opcode = "0";
-        function = "3";
-        fragments = [ "sreg1", ":,", "dreg0" ];
+        fragments = [ "dreg4", ":,", "sreg4" ];
     },
     {
         mnemonic = "mov";
         format = "R";
         opcode = "0";
-        function = "4";
+        function = "32";
         fragments = [ "dreg0", ":,", "sreg1" ];
     },
     {
         mnemonic = "mov";
         format = "R";
         opcode = "0";
-        function = "5";
+        function = "33";
         fragments = [ "dreg1", ":,", "sreg0" ];
     },
     {
+        mnemonic = "mov";
+        format = "R";
+        opcode = "0";
+        function = "34";
+        fragments = [ "dreg4", ":,", "sreg5" ];
+    },
+    {
+        mnemonic = "mov";
+        format = "R";
+        opcode = "0";
+        function = "35";
+        fragments = [ "dreg5", ":,", "sreg4" ];
+    },
+    {
         mnemonic = "xch";
         format = "R";
         opcode = "0";
-        function = "6";
+        function = "36";
+        fragments = [ "dreg0", ":,", "sreg1" ];
+    },
+    {
+        mnemonic = "xch";
+        format = "R";
+        opcode = "0";
+        function = "36";
+        fragments = [ "sreg1", ":,", "dreg0" ];
+    },
+    {
+        mnemonic = "xch";
+        format = "R";
+        opcode = "0";
+        function = "37";
         fragments = [ "dreg4", ":,", "sreg5" ];
     },
     {
         mnemonic = "xch";
         format = "R";
         opcode = "0";
-        function = "6";
+        function = "37";
         fragments = [ "sreg5", ":,", "dreg4" ];
     },
 

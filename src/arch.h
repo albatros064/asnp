@@ -7,6 +7,7 @@
 #include <map>
 
 #include "token.h"
+#include "segment.h"
 
 namespace asnp {
 namespace arch {
@@ -38,6 +39,8 @@ class Arch {
     public:
         Arch(std::string);
 
+        std::map<std::string, SegmentDescription> segments;
+
         std::map<std::string, Format> formats;
         std::map<std::string, Fragment> fragments;
         std::map<std::string, std::list<Instruction>> instructions;
@@ -45,7 +48,8 @@ class Arch {
         int dataWidth;
         int addressWidth;
         int addressableWidth;
-        uint32_t entryPoint;
+        uint32_t textAddress;
+        uint32_t dataAddress;
 };
 
 }; // namespace arch

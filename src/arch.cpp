@@ -17,7 +17,24 @@ Arch::Arch(std::string name) {
         configRoot.lookupValue("dataWidth", dataWidth);
         configRoot.lookupValue("addressWidth", addressWidth);
         configRoot.lookupValue("addressableWidth", addressableWidth);
-        configRoot.lookupValue("entryPoint", entryPoint);
+        configRoot.lookupValue("textAddress", textAddress);
+        configRoot.lookupValue("dataAddress", dataAddress);
+
+        const libconfig::Setting& csegments = configRoot["segments"];
+        int segmentCount = csegments.getLength();
+        for (int i = 0; i < segmentCount; i++) {
+            const libconfig::Setting& csegment = csegments[i];
+            SegmentDescription segment;
+
+            csegment.lookupValue("name", segment.name);
+            csegment.lookupValue("start", segment.start);
+            csegment.lookupValue("size", segment.size);
+            csegment.lookupValue("fill", segment.fill);
+            csegment.lookupValue("ephemeral", segment.ephemeral);
+            csegment.lookupValue("readOnly", segment.readOnly);
+
+            segments[segment.name] = segment;
+        }
 
         const libconfig::Setting& cfragments = configRoot["fragments"];
         const libconfig::Setting& cformats = configRoot["formats"];

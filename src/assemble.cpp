@@ -2,7 +2,9 @@
 #include <iomanip>
 #include <fstream>
 #include <bit>
+#include <algorithm>
 #include <vector>
+#include <filesystem>
 #include <ctype.h>
 
 #include "error.h"
@@ -10,14 +12,28 @@
 
 namespace asnp {
 
-Assembler::Assembler(std::string in, std::string out)
-  :inFile(in),outFile(out) {
+Assembler::Assembler(std::string out)
+  :outFile(out) {
 }
-Assembler::~Assembler() {
-}
+Assembler::~Assembler() {}
 
 #define LENGTH_LINEBUFFER 256
-bool Assembler::assemble() {
+bool Assembler::assemble(std::string inDir, std::string inFile) {
+    if (inFile.empty()) {
+        std::cerr << "Could not open input file '" << inFile << "'. Aborting." << std::endl;
+        return false;
+    }
+    if (inFile.front() != '/') {
+        inFile = inDir + inFile;
+    }
+
+    std::filesystem::path filePath(inFile);
+    std::string directory = filePath.parent_path();
+
+    if (!directory.empty() && directory.back() != '/') {
+        directory += '/';
+    }
+
     std::ifstream reader(inFile);
 
     if (!reader.is_open()) {
@@ -27,7 +43,6 @@ bool Assembler::assemble() {
 
     try {
         currentLine = 1;
-        segment = NoSegment;
 
         char lineBuffer[LENGTH_LINEBUFFER];
         while (!reader.eof()) {
@@ -48,10 +63,10 @@ bool Assembler::assemble() {
 
                 if (lineState == LabelState) {
                     if (token.type == Directive) {
-                        processDirective(token);
+                        processDirective(token, directory);
                         lineState = DoneState;
                     }
-                    else if (segment == NoSegment) {
+                    else if (!segment.get()) {
                         throw new SyntaxError("unexpected token '" + token.content + "'", token);
                     }
                     else if (token.type == Label) {
@@ -68,10 +83,10 @@ bool Assembler::assemble() {
                 }
                 else if (lineState == ActionState) {
                     if (token.type == Directive) {
-                        processDirective(token);
+                        processDirective(token, directory);
                         lineState = DoneState;
                     }
-                    else if (segment == NoSegment) {
+                    else if (!segment.get()) {
                         throw new SyntaxError("unexpected token '" + token.content + "'", token);
                     }
                     else if (token.type == Identifier) {
@@ -83,35 +98,56 @@ bool Assembler::assemble() {
                     }
                 }
                 else {
-                    throw new SyntaxError("unexpected token '" + token.content + "'", token);
+                    if (token.content.length() > 0 && token.content[0] == '"') {
+                        throw new SyntaxError("unexpected string " + token.content, token);
+                    }
+                    else {
+                        throw new SyntaxError("unexpected token '" + token.content + "'", token);
+                    }
                 }
             }
 
             currentLine++;
         }
-
-        if (dataOffset > 0) {
-            dataStart = textStart + textOffset;
-        }
-
-        processReferences();
-
-        auto out = std::ofstream(outFile, std::ios::binary);
-        out.write((const char *) text, textOffset);
-        if (dataOffset > 0) {
-            out.write((const char *) data, dataOffset);
-        }
-        //std::ofstream(outFile, std::ios::binary).write((const char *) text, textOffset);
     }
     catch (CodeError *e) {
+        std::cerr << "[" << inFile << ":" << currentLine << "] ";
         std::cerr << e->type << ": " << e->message;
-        std::cerr << " on line " << currentLine << " at char " << (e->token.character + 1) << ":" << std::endl;
+        std::cerr << " at char " << (e->token.character + 1) << ":" << std::endl;
         std::cerr << line << std::endl;
         std::string blanks(e->token.character, ' ');
         std::cerr << blanks << '^' << std::endl;
+
+        return false;
+    }
+    catch (AssemblyError *e) {
+        std::cerr << "[" << inFile << ":" << currentLine << "] ";
+        std::cerr << e->type << ": " << e->message << std::endl;
+
+        return false;
+    }
+
+    return true;
+}
+
+bool Assembler::link() {
+    try {
+        std::cout << "Resolving references" << std::endl;
+        processReferences();
+
+        std::cout << "Writing data" << std::endl;
+        auto out = std::ofstream(outFile, std::ios::binary);
+        for (auto seg: segments) {
+            if (seg.second->ephemeral) {
+                continue;
+            }
+            out.write((const char *) (*seg.second), seg.second->getSize());
+        }
     }
     catch (AssemblyError *e) {
         std::cerr << e->type << ": " << e->message << std::endl;
+
+        return false;
     }
 
     return true;
@@ -130,11 +166,11 @@ bool _eat_whitespace(std::string line, int &index) {
     return true;
 }
 std::string _read_word(std::string line, int &index) {
-    std::string word;
     int start = index;
     while (!isspace(line[index]) &&
             line[index] != ',' && line[index] != ';' &&
-            line[index] != '(' && line[index] != ')') {
+            line[index] != '(' && line[index] != ')' &&
+            line[index] != '"') {
         index++;
         if (index >= line.length()) {
             break;
@@ -144,39 +180,27 @@ std::string _read_word(std::string line, int &index) {
             break;
         }
     }
-    word = line.substr(start, index - start);
-    _eat_whitespace(line, index);
-
-    return word;
+    return line.substr(start, index - start);
 }
 std::string _read_punctuator(std::string line, int &index) {
     return line.substr(index++, 1);
 }
+std::string _read_string(std::string line, int &index) {
+    int start = index;
+    index++;
 
-void _pack_bits(uint8_t *buffer, uint32_t value, int width, int& byte, int& bit) {
-    do {
-        int bitsForByte = 8 - bit;
-        uint32_t mask = 0xff;
-        uint32_t val = value;
-        if (bitsForByte > width) {
-            mask >>= (8 - width);
-            val &= mask;
-            val <<= (bitsForByte - width);
-            bit += width;
-            width = 0;
+    while (index < line.length()) {
+        if (line[index] == '\\') {
+            index++;
         }
-        else {
-            val = (val >> (width - bitsForByte)) & mask;
-            width -= bitsForByte;
-            bit += bitsForByte;
+        else if (line[index] == '"') {
+            index++;
+            break;
         }
-        buffer[byte] |= (uint8_t) val;
+        index++;
+    }
 
-        if (bit >= 8) { // shouldn't ever be > 8, but meh
-            bit = 0;
-            byte++;
-        }
-    } while (width > 0);
+    return line.substr(start, index - start);
 }
 
 void Assembler::tokenize(std::string line) {
@@ -187,27 +211,34 @@ void Assembler::tokenize(std::string line) {
 
     tokens.clear();
 
-    while (true && current < line.length()) {
+    while (current < line.length()) {
         int tokenStart = current;
-        std::string word = _read_word(line, current);
-        if (word.length() > 0) {
-            Token identifier(word, tokenStart);
-            tokens.push_back(identifier);
-        }
-
-        if (line[current] == ',' || line[current] == '(' || line[current] == ')') {
-            tokenStart = current;
-            Token punctuator(_read_punctuator(line, current), tokenStart);
-            tokens.push_back(punctuator);
-        }
         if (line[current] == ';') {
             // Rest of the line is a comment
             break;
         }
+
+        std::string tokenString;
+        if (line[current] == '"') {
+            tokenString = _read_string(line, current);
+        }
+        else if (line[current] == ',' || line[current] == '(' || line[current] == ')') {
+            tokenString = _read_punctuator(line, current);
+        }
+        else {
+            tokenString = _read_word(line, current);
+        }
+
+        if (tokenString.length() > 0) {
+            Token token(tokenString, tokenStart);
+            tokens.push_back(token);
+        }
+
+        _eat_whitespace(line, current);
     }
 }
 
-void Assembler::processDirective(Token &token) {
+void Assembler::processDirective(Token &token, std::string directory) {
     if (token.content == ".arch") {
         if (architecture) {
             throw new SyntaxError("cannot redefine architecture", token);
@@ -221,7 +252,10 @@ void Assembler::processDirective(Token &token) {
         tokens.pop_front();
         
         architecture = std::make_unique<arch::Arch>(archArg.content);
-        textStart = architecture->entryPoint;
+
+        for (auto seg: architecture->segments) {
+            segments[seg.first] = std::make_shared<Segment>(seg.second);
+        }
     }
     else if (!architecture) {
         throw new SyntaxError("architecture not defined", token);
@@ -237,43 +271,20 @@ void Assembler::processDirective(Token &token) {
         if (directiveArg.type != TokenType::Number) {
             throw new SyntaxError("unexpected token '" + directiveArg.content + "'", directiveArg);
         }
-        uint32_t value = directiveArg.parseNumber(32, 0,  NumberSign::ForceUnsigned);
-
-        if (segment == DataSegment) {
-            throw new SyntaxError("data fragment may not be manually located (for now)", directiveArg);
-        }
-        else {
-            if (textOffset == 0) {
-                textStart = value;
-            }
-            else if (value < textStart) {
-                throw new SyntaxError("invalid offset '" + directiveArg.content + "'", directiveArg);
-            }
-            else if (value - textStart > SECTION_MAX_SIZE) {
-                throw new SyntaxError("text fragment size exceeded", directiveArg);
-            }
-            else {
-                textOffset = value - textStart;
-            }
-        }
+        *segment = directiveArg.parseNumber(32, 0,  NumberSign::ForceUnsigned);
     }
     else if (token.content == ".segment") {
         Token newSegment = tokens.front();
         tokens.pop_front();
 
-        if (newSegment.content == "text") {
-            segment = TextSegment;
-        }
-        else if (newSegment.content == "data") {
-            segment = DataSegment;
-        }
-        else {
+        if (!segments.contains(newSegment.content)) {
             throw new SyntaxError("unrecognized segment '" + newSegment.content + "'", newSegment);
         }
+        segment = segments[newSegment.content];
     }
-    else if (token.content == ".byte" || token.content == ".word") {
+    else if (token.content == ".byte" || token.content == ".word" || token.content == ".dword") {
         uint32_t value = 0;
-        int width = token.content == ".byte" ? 8 : 16;
+        int width = token.content == ".byte" ? 8 : (token.content == ".word" ? 16 : 32);
         int bytes = width >> 1;
         if (!tokens.empty()) {
             Token directiveArg = tokens.front();
@@ -283,29 +294,100 @@ void Assembler::processDirective(Token &token) {
                 throw new SyntaxError("unexpected token '" + directiveArg.content + "'", directiveArg);
             }
 
-            value = (uint16_t) directiveArg.parseNumber(width, 0, NumberSign::AllowSigned);
+            value = (uint32_t) directiveArg.parseNumber(width, 0, NumberSign::AllowSigned);
         }
 
-        if (segment == DataSegment) {
-            if (dataOffset + bytes >= SECTION_MAX_SIZE) {
-                throw new SyntaxError("data fragment size exceeded", token);
-            }
-
-            data[dataOffset++] = (uint8_t) (value & 0xff);
-            if (width > 8) {
-                data[dataOffset++] = (uint8_t) ((value >> 8) & 0xff);
+        *segment += (uint8_t) (value & 0xff);
+        if (width > 8) {
+            *segment += (uint8_t) ((value >> 8) & 0xff);
+            if (width > 16) {
+                *segment += (uint8_t) ((value >> 16) & 0xff);
+                *segment += (uint8_t) ((value >> 24) & 0xff);
             }
         }
-        else {
-            if (textOffset + bytes >= SECTION_MAX_SIZE) {
-                throw new SyntaxError("text fragment size exceeded", token);
+    }
+    else if (token.content == ".string" || token.content == ".stringz") {
+        Token directiveArg = tokens.front();
+        tokens.pop_front();
+
+        if (directiveArg.type != TokenType::String) {
+            throw new SyntaxError("unexpected token '" + directiveArg.content + "'", directiveArg);
+        }
+        if (directiveArg.error) {
+            throw new SyntaxError("unterminated string '" + directiveArg.content + "'", directiveArg);
+        }
+
+        for (int i = 1; i < directiveArg.content.length() - 1; i++) {
+            uint8_t character = directiveArg.content[i];
+            if (character == '\\') {
+                i++;
+                character = directiveArg.content[i];
+                if (std::isdigit(character)) {
+                    character = character - '0';
+                }
+                else {
+                    switch (character) {
+                        case 'a':
+                            character = '\a';
+                            break;
+                        case 'b':
+                            character = '\b';
+                            break;
+                        case 'f':
+                            character = '\f';
+                            break;
+                        case 'n':
+                            character = '\n';
+                            break;
+                        case 'r':
+                            character = '\r';
+                            break;
+                        case 't':
+                            character = '\t';
+                            break;
+                        case 'v':
+                            character = '\v';
+                            break;
+                        case '\\':
+                        case '\'':
+                        case '"':
+                            break;
+                        default:
+                            break;
+                    }
+                }
             }
 
-            text[textOffset++] = (uint8_t) (value & 0xff);
-            if (width > 8) {
-                text[textOffset++] = (uint8_t) ((value >> 8) & 0xff);
-            }
+            *segment += character;
         }
+        if (token.content == ".stringz") {
+            *segment += (uint8_t) 0;
+        }
+    }
+    else if (token.content == ".include") {
+        Token directiveArg = tokens.front();
+        tokens.pop_front();
+
+        if (directiveArg.type != TokenType::String) {
+            throw new SyntaxError("unexpected token '" + directiveArg.content + "'", directiveArg);
+        }
+        if (directiveArg.error) {
+            throw new SyntaxError("unterminated string '" + directiveArg.content + "'", directiveArg);
+        }
+
+        if (!tokens.empty()) {
+            directiveArg = tokens.front();
+            throw new SyntaxError("unexpected token '" + directiveArg.content + "'", directiveArg);
+        }
+
+        lineStack.push_back(currentLine);
+        if (!assemble(directory, directiveArg.content.substr(1, directiveArg.content.length() - 2))) {
+            currentLine = lineStack.back();
+            lineStack.pop_back();
+            throw new NestedError("error(s) encountered in file included on line " + std::to_string(currentLine));
+        }
+        currentLine = lineStack.back();
+        lineStack.pop_back();
     }
     else {
         throw new SyntaxError("unrecognized directive '" + token.content + "'", token);
@@ -437,14 +519,14 @@ void Assembler::processInstruction(Token &token) {
         auto format = architecture->formats[option.format];
         int instructionWidth = format.width / 8;
 
-        if (instructionWidth + textOffset >= SECTION_MAX_SIZE) {
+        if (!segment->canPlace(instructionWidth)) {
             throw new SyntaxError("text fragment size exceeded", token);
         }
 
         // Pack instruction fragments into bytes
         uint8_t buffer[16];
         std::fill(std::begin(buffer), std::end(buffer), 0);
-        int byte = 0;
+        uint32_t startingOffset = segment->getOffset();
         int bit = 0;
         for (auto fragmentName: format.fragments) {
             uint32_t value;
@@ -454,7 +536,7 @@ void Assembler::processInstruction(Token &token) {
             else if (option.defaults.contains(fragmentName)) {
                 auto defaultValue = option.defaults[fragmentName];
                 if (defaultValue == "%next%") {
-                    value = textStart + textOffset + instructionWidth;
+                    value = segment->getNext(instructionWidth);
                 }
                 else {
                     value = std::stoi(defaultValue);
@@ -468,24 +550,17 @@ void Assembler::processInstruction(Token &token) {
             if (pendingReferences.contains(fragmentName)) {
                 std::string label = pendingReferences[fragmentName];
                 Reference reference;
-                reference.offset = textOffset + byte;
+                reference.label = label;
+                reference.offset = segment->getOffset() - 1;
                 reference.bit    = bit;
                 reference.width  = fragment.owidth;
                 reference.shift  = fragment.alignment - 1;
-                reference.relative = fragment.type == "raddress" ? textOffset : 0;
+                reference.relative = fragment.type == "raddress" ? startingOffset : 0;
 
-                if (!references.contains(label)) {
-                    std::list<Reference> rL;
-                    references[label] = rL;
-                }
-                references[label].push_back(reference);
+                *segment += reference;
             }
 
-            _pack_bits(buffer, value, fragment.owidth, byte, bit);
-        }
-
-        for (int i = 0; i < instructionWidth; i++) {
-            text[textOffset++] = buffer[i];
+            segment->pack(value, fragment.owidth, Segment::UNDEFINED_OFFSET, bit);
         }
 
         return;
@@ -498,38 +573,35 @@ void Assembler::processLabel(Token &token) {
         throw new SyntaxError("duplicate label '" + token.content + "'", token);
     }
 
-    labels[token.content] = std::pair<Segment, uint16_t>(segment, segment == DataSegment ? dataOffset : textOffset);
+    labels[token.content] = segment;
+
+    *segment += token.content;
 }
 
 void Assembler::processReferences() {
-    for (auto iter = references.begin(); iter != references.end(); iter++) {
-        std::string label = iter->first;
-        if (!labels.contains(label)) {
-            throw new ReferenceError("undefined reference to '" + label + "'");
-        }
+    for (auto segment: segments) {
+        for (auto reference: segment.second->getReferences()) {
+            std::string label = reference.label;
 
-        auto deref = labels[label];
-        uint32_t value;
-        if (deref.first == Segment::TextSegment) {
-            value = textStart + deref.second;
-        }
-        else {
-            value = dataStart + deref.second;
-        }
+            if (!labels.contains(label)) {
+                throw new ReferenceError("undefined reference to '" + label + "'");
+            }
 
-        for (Reference ref: iter->second) {
-            int byte = ref.offset;
-            int bit = ref.bit;
+            auto labelSegment = labels[label];
+            uint32_t value = (*labelSegment)[label] + (uint32_t) *labelSegment;
+
+            int bit = reference.bit;
 
             uint32_t modifiedValue = value;
-            if (ref.relative != 0) {
-                modifiedValue = deref.second - ref.relative;
-            }
-            if (ref.shift > 0) {
-                modifiedValue >>= ref.shift;
+            if (reference.relative != 0) {
+                modifiedValue = (*labelSegment)[label] - reference.relative;
             }
 
-            _pack_bits(text, modifiedValue, ref.width, byte, bit);
+            if (reference.shift > 0) {
+                modifiedValue >>= reference.shift;
+            }
+
+            segment.second->pack(modifiedValue, reference.width, reference.offset, bit);
         }
     }
 }
@@ -539,6 +611,12 @@ Token::Token(std::string token, int start): content(token), character(start), er
 
     if (ch== '.') {
         type = Directive;
+    }
+    else if (ch == '"') {
+        type = String;
+        if (token.back() != '"' || token[token.length() - 2] == '\\') {
+            error = true;
+        }
     }
     else if (ch == '-' || isdigit(ch)) {
         type = Number;
@@ -701,5 +779,6 @@ uint32_t Token::parseNumber(int maxBits, int subtract, NumberSign sign, int skip
 
     return value;
 }
+
 
 }; // namespace asnp
