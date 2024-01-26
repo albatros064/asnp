@@ -81,6 +81,8 @@ Arch::Arch(std::string name) {
             Instruction instruction;
             cinstruction.lookupValue("mnemonic", instruction.mnemonic);
             cinstruction.lookupValue("format", instruction.format);
+            instruction.id = 0;
+            cinstruction.lookupValue("id", instruction.id);
 
             const libconfig::Setting& cifragments = cinstruction["fragments"];
             int fSegCount = cifragments.getLength();
@@ -88,15 +90,44 @@ Arch::Arch(std::string name) {
                 instruction.fragments.push_back(cifragments[j]);
             }
 
-            if (!formats.contains(instruction.format)) {
+            if (cinstruction.exists("components")) {
+                const libconfig::Setting& ccomponents = cinstruction["components"];
+                int componentCount = ccomponents.getLength();
+                for (int c = 0; c < componentCount; c++) {
+                    const libconfig::Setting& ccomponent = ccomponents[c];
+
+                    InstructionComponent component;
+                    ccomponent.lookupValue("id", component.id);
+
+                    const libconfig::Setting& creplacements = ccomponent["replacements"];
+                    int replacementCount = creplacements.getLength();
+                    for (int r = 0; r < replacementCount; r++) {
+                        const libconfig::Setting& creplacement = creplacements[r];
+
+                        FragmentReplacement replacement;
+
+                        creplacement.lookupValue("source", replacement.source);
+                        creplacement.lookupValue("dest", replacement.dest);
+                        replacement.shift = 0;
+                        if (creplacement.exists("shift")) {
+                            creplacement.lookupValue("shift", replacement.shift);
+                        }
+
+                        component.replacements.push_back(replacement);
+                    }
+                    instruction.components.push_back(component);
+                }
+            }
+
+            if (instruction.format != "composite" && !formats.contains(instruction.format)) {
                 throw new ConfigError("unrecognized instruction format '" + instruction.format + "'");
             }
             Format format = formats[instruction.format];
-            for (std::string seg: format.fragments) {
-                if (cinstruction.exists(seg)) {
-                    std::string segName;
-                    cinstruction.lookupValue(seg, segName);
-                    instruction.defaults[seg] = segName;
+            for (std::string frag: format.fragments) {
+                if (cinstruction.exists(frag)) {
+                    std::string fragName;
+                    cinstruction.lookupValue(frag, fragName);
+                    instruction.defaults[frag] = frag;
                 }
             }
 
@@ -105,6 +136,10 @@ Arch::Arch(std::string name) {
                 instructions[instruction.mnemonic] = iL;
             }
             instructions[instruction.mnemonic].push_back(instruction);
+
+            if (instruction.id > 0) {
+                indexedInstructions[instruction.id] = instruction;
+            }
         }
     }
     catch (libconfig::FileIOException e) {

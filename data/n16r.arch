@@ -175,6 +175,11 @@ fragments = (
         owidth = 16;
         alignment = 2;
         type = "raddress";
+    },
+    {
+        name = "i32";
+        width = 32;
+        type = "address";
     }
 );
 
@@ -196,13 +201,13 @@ formats = (
             "opcode",
             "dreg0", "dreg1", "dreg2", "dreg3", "dreg4", "dreg5", "dreg6", "dreg7", 
             "function1",
-            "i8s", "i8u"
+            "i8s", "i8u", "shamt"
         ];
     },
     {
         name = "E";
         width = 16;
-        fragments = [ "opcode", "dreg0", "sreg4", "rreg", "f3"];
+        fragments = [ "opcode", "dreg0", "sreg4", "rreg", "function3"];
     },
     {
         name = "M";
@@ -434,6 +439,7 @@ instructions = (
         opcode = "10";
         function1 = "1";
         fragments = [ "dreg0", ":,", "i8u" ];
+        id = 2;
     },
     {
         mnemonic = "xor";
@@ -462,6 +468,7 @@ instructions = (
         opcode = "11";
         function1 = "1";
         fragments = [ "dreg0", ":,", "i8u" ];
+        id = 1;
     },
 
     {
@@ -526,25 +533,58 @@ instructions = (
         mnemonic = "lb";
         format = "M";
         opcode = "2";
+        function = "0";
         fragments = [ "dreg0", ":,", "i7", ":(", "sreg4", ":)" ];
     },
     {
         mnemonic = "lw";
         format = "M";
-        opcode = "3";
+        opcode = "2";
+        function = "1";
         fragments = [ "dreg0", ":,", "i7", ":(", "sreg4", ":)" ];
     },
     {
         mnemonic = "sb";
         format = "M";
-        opcode = "4";
+        opcode = "2";
+        function = "2";
         fragments = [ "dreg0", ":,", "i7", ":(", "sreg4", ":)" ];
     },
     {
         mnemonic = "sw";
         format = "M";
-        opcode = "5";
+        opcode = "2";
+        function = "3";
         fragments = [ "dreg0", ":,", "i7", ":(", "sreg4", ":)" ];
+    },
+
+    {
+        mnemonic = "lbr";
+        format = "E";
+        opcode = "3";
+        function = "0";
+        fragments = [ "dreg0", ":,", "rreg", ":(", "sreg4", ":)" ];
+    },
+    {
+        mnemonic = "lwr";
+        format = "E";
+        opcode = "3";
+        function = "1";
+        fragments = [ "dreg0", ":,", "rreg", ":(", "sreg4", ":)" ];
+    },
+    {
+        mnemonic = "sbr";
+        format = "E";
+        opcode = "3";
+        function = "2";
+        fragments = [ "dreg0", ":,", "rreg", ":(", "sreg4", ":)" ];
+    },
+    {
+        mnemonic = "swr";
+        format = "E";
+        opcode = "3";
+        function = "3";
+        fragments = [ "dreg0", ":,", "rreg", ":(", "sreg4", ":)" ];
     },
 
     {
@@ -552,7 +592,7 @@ instructions = (
         format = "R";
         opcode = "0";
         function = "56";
-        sreg = "0";
+        sreg0 = "0";
         fragments = [ "dreg4" ];
     },
     {
@@ -567,7 +607,7 @@ instructions = (
         format = "R";
         opcode = "0";
         function = "57";
-        sreg = "0";
+        sreg0 = "0";
         fragments = [ "dreg4" ];
     },
     {
@@ -631,8 +671,8 @@ instructions = (
         format = "R";
         opcode = "0";
         function = "24";
-        dreg = "0";
-        sreg = "0";
+        dreg0 = "0";
+        sreg0 = "0";
         fragments = [];
     },
     {
@@ -640,8 +680,8 @@ instructions = (
         format = "R";
         opcode = "0";
         function = "25";
-        dreg = "0";
-        sreg = "0";
+        dreg0 = "0";
+        sreg0 = "0";
         fragments = [];
     },
     {
@@ -670,6 +710,70 @@ instructions = (
         format = "R";
         opcode = "0";
         function = "29";
-        fragments = [ "sreg6", ":,", "dreg4" ];
+        fragments = [ "dreg6", ":,", "sreg4" ];
+    },
+
+    {
+        mnemonic = "adr";
+        format = "composite";
+        fragments = [ "dreg0", ":,", "sreg0", ":,", "i32" ];
+        components = (
+            {
+                id = 1;
+                replacements = (
+                    {
+                        source = "dreg0";
+                        dest = "dreg0";
+                    },
+                    {
+                        source = "i32";
+                        dest = "i8u";
+                        shift = 8;
+                    }
+                );
+            },
+            {
+                id = 2;
+                replacements = (
+                    {
+                        source = "dreg0";
+                        dest = "dreg0";
+                    },
+                    {
+                        source = "i32";
+                        dest = "i8u";
+                        shift = 0;
+                    }
+                );
+            },
+            {
+                id = 1;
+                replacements = (
+                    {
+                        source = "sreg0";
+                        dest = "dreg0";
+                    },
+                    {
+                        source = "i32";
+                        dest = "i8u";
+                        shift = 24;
+                    }
+                );
+            },
+            {
+                id = 2;
+                replacements = (
+                    {
+                        source = "sreg0";
+                        dest = "dreg0";
+                    },
+                    {
+                        source = "i32";
+                        dest = "i8u";
+                        shift = 16;
+                    }
+                );
+            }
+        );
     }
 );

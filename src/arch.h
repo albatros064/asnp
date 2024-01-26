@@ -27,12 +27,27 @@ class Format {
         int width;
         std::list<std::string> fragments;
 };
+
+class FragmentReplacement {
+    public:
+        std::string source;
+        std::string dest;
+        int shift;
+};
+class InstructionComponent {
+    public:
+        int id;
+        std::vector<FragmentReplacement> replacements;
+};
+
 class Instruction {
     public:
+        int id;
         std::string mnemonic;
         std::string format;
         std::vector<std::string> fragments;
         std::map<std::string,std::string> defaults;
+        std::vector<InstructionComponent> components;
 };
 
 class Arch {
@@ -44,6 +59,7 @@ class Arch {
         std::map<std::string, Format> formats;
         std::map<std::string, Fragment> fragments;
         std::map<std::string, std::list<Instruction>> instructions;
+        std::map<int32_t, Instruction> indexedInstructions;
 
         int dataWidth;
         int addressWidth;

@@ -1,6 +1,6 @@
-.segment data
+.segment kmem
 
-  m_drivers_serial:
+  m_driver_serial:
     .byte 0  ; bool     out_ready
     .byte 0  ; reserved
     .byte 0  ; uint8_t  in_buffer_head
@@ -10,9 +10,9 @@
     .dword 0 ; .
     .dword 0 ; .
 
-.segment text
+.segment ktext
 
-drivers_serial_init:
+driver_serial_init:
     adr $2, $3, m_driver_serial
     xor $0, $0
     sw  $0, 2($41) ; in_buffer_head = in_buffer_tail = 0
@@ -20,11 +20,11 @@ drivers_serial_init:
     sb  $0, 0($41) ; out_ready = 1
     jr  $47
 
-drivers_serial_interrupt:
+driver_serial_interrupt:
     adr  $2, $3, m_driver_serial
     adr  $0, $1, 0x000c0010 ; i/o address
-    rw   $0, $40    ; read serial status word
-    mv   $1, $0     ; extract input status
+    lw   $0, 0($40) ; read serial status word
+    mov  $1, $0     ; extract input status
     shr  $1, 8      ; .
     andi $1, 1      ; .
     xor  $4, $4
@@ -43,10 +43,10 @@ drivers_serial_interrupt:
     sbr  $1, $4($41)
     sb   $6, 2($41)
 
-  drivers_serial_interrupt_1:
+  driver_serial_interrupt_1:
     shr  $0, 9      ; extract "output busy" status
     nor  $0, $0     ; invert for "output ready"
     andi $0, 1
-    wb   $0, 0($41) ; and write it
+    sb   $0, 0($41) ; and write it
 
     j exception_handler_exit

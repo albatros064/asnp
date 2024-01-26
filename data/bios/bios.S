@@ -1,6 +1,6 @@
 .arch n16r
 
-.segment data
+.segment kmem
 
 ; KERNEL MEMORY
 m_kernel_exception_memory:
@@ -20,7 +20,7 @@ m_kernel_exception_memory:
 
 ; DRIVER MEMORY
 
-.segment text
+.segment ktext
     ; set interrupt handler
     adr $0, $1, exception_handler
     mov $65, $40
@@ -100,11 +100,11 @@ interrupt_handler:
     mov  $2, $0
     shr  $2, 0x8
     andi $2, 0x4
-    bne  $2, $1, drivers_serial_interrupt
+    bne  $2, $1, driver_serial_interrupt
 
 syscall_handler:
 reserved_handler:
-exception_handler_exit
+exception_handler_exit:
     mov $47, $67 ; 
     xch $40, $50
     xch $47, $57 ; put $ra back, set up return jump
@@ -112,4 +112,4 @@ exception_handler_exit
     jr $57       ; return jump (in eret protection slot)
     
 
-.include "drivers/serial.S"
+.include "driver/serial.S"
