@@ -127,7 +127,7 @@ Arch::Arch(std::string name) {
                 if (cinstruction.exists(frag)) {
                     std::string fragName;
                     cinstruction.lookupValue(frag, fragName);
-                    instruction.defaults[frag] = frag;
+                    instruction.defaults[frag] = fragName;
                 }
             }
 

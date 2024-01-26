@@ -600,6 +600,7 @@ instructions = (
         format = "R";
         opcode = "0";
         function = "57";
+        sreg0 = "0";
         fragments = [ "dreg5" ];
     },
     {
@@ -696,7 +697,7 @@ instructions = (
         format = "R";
         opcode = "0";
         function = "27";
-        fragments = [ "sreg2", ":,", "dreg0" ];
+        fragments = [ "dreg2", ":,", "sreg0" ];
     },
     {
         mnemonic = "mov";
