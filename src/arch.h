@@ -20,6 +20,7 @@ class Fragment {
         int owidth;
         int alignment;
         int offset;
+        bool rightAlign;
 };
 class Format {
     public:

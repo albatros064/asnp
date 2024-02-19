@@ -52,9 +52,11 @@ Arch::Arch(std::string name) {
             fragment.alignment = 1;
             fragment.owidth = fragment.width;
             fragment.offset = 0;
+            fragment.rightAlign = false;
             cfragment.lookupValue("owidth", fragment.owidth);
             cfragment.lookupValue("alignment", fragment.alignment);
             cfragment.lookupValue("offset", fragment.offset);
+            cfragment.lookupValue("right", fragment.rightAlign);
 
             fragments[fragment.name] = fragment;
         }

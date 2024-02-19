@@ -474,7 +474,7 @@ void Assembler::processInstruction(Token &token) {
                     }
 
                     NumberSign sign = seg.type == "signed" ? NumberSign::ForceSigned : NumberSign::ForceUnsigned;
-                    value = token.parseNumber(seg.width, 0, sign);
+                    value = token.parseNumber(seg.width, seg.offset, sign);
                 }
 
                 if (seg.alignment > 1) {
@@ -487,7 +487,7 @@ void Assembler::processInstruction(Token &token) {
                 if (seg.owidth < seg.width) {
                     value >>= (seg.width - seg.owidth);
                 }
-                else if (seg.owidth > seg.width) {
+                else if (seg.owidth > seg.width && !seg.rightAlign) {
                     value <<= (seg.owidth - seg.width);
                 }
 
@@ -511,7 +511,6 @@ void Assembler::processInstruction(Token &token) {
             continue;
         }
 
-
         std::list<InstructionCandidate> options;
         if (candidate.instruction.format == "composite") {
             for (auto component: candidate.instruction.components) {
@@ -521,11 +520,14 @@ void Assembler::processInstruction(Token &token) {
                 componentInstruction.pendingReferences  = candidate.pendingReferences;
 
                 for (auto replacement: component.replacements) {
-                    componentInstruction.values[replacement.dest] = candidate.values[replacement.source];
                     if (candidate.pendingReferences.contains(replacement.source)) {
+                        componentInstruction.values[replacement.dest] = candidate.values[replacement.source];
                         std::string newReference = std::to_string(replacement.shift) + ":";
                         newReference += candidate.pendingReferences[replacement.source];
                         componentInstruction.pendingReferences[replacement.dest] = newReference;
+                    }
+                    else {
+                        componentInstruction.values[replacement.dest] = candidate.values[replacement.source] >> replacement.shift;
                     }
                 }
                 options.push_back(componentInstruction);

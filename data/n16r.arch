@@ -155,6 +155,8 @@ fragments = (
         name = "shamt";
         width = 4;
         owidth = 8;
+        right = true;
+        offset = 1;
         type = "unsigned";
     },
     {
@@ -170,11 +172,16 @@ fragments = (
         type = "address";
     },
     {
-        name = "i16";
+        name = "i17";
         width = 17;
         owidth = 16;
         alignment = 2;
         type = "raddress";
+    },
+    {
+        name = "i16";
+        width = 16;
+        type = "signed";
     },
     {
         name = "i32";
@@ -222,7 +229,7 @@ formats = (
     {
         name = "B";
         width = 32;
-        fragments = [ "opcode", "dreg0", "sreg0", "function", "i16" ];
+        fragments = [ "opcode", "dreg0", "sreg0", "function", "i17" ];
     }
 );
 
@@ -534,28 +541,28 @@ instructions = (
         format = "M";
         opcode = "2";
         function = "0";
-        fragments = [ "dreg0", ":,", "i7", ":(", "sreg4", ":)" ];
+        fragments = [ "dreg0", ":,", "i16", ":(", "sreg4", ":)" ];
     },
     {
         mnemonic = "lw";
         format = "M";
         opcode = "2";
         function = "1";
-        fragments = [ "dreg0", ":,", "i7", ":(", "sreg4", ":)" ];
+        fragments = [ "dreg0", ":,", "i16", ":(", "sreg4", ":)" ];
     },
     {
         mnemonic = "sb";
         format = "M";
         opcode = "2";
         function = "2";
-        fragments = [ "dreg0", ":,", "i7", ":(", "sreg4", ":)" ];
+        fragments = [ "dreg0", ":,", "i16", ":(", "sreg4", ":)" ];
     },
     {
         mnemonic = "sw";
         format = "M";
         opcode = "2";
         function = "3";
-        fragments = [ "dreg0", ":,", "i7", ":(", "sreg4", ":)" ];
+        fragments = [ "dreg0", ":,", "i16", ":(", "sreg4", ":)" ];
     },
 
     {
@@ -629,42 +636,42 @@ instructions = (
         format = "B";
         opcode = "6";
         function = "0";
-        fragments = [ "dreg0", ":,", "sreg0", ":,", "i16" ];
+        fragments = [ "dreg0", ":,", "sreg0", ":,", "i17" ];
     },
     {
         mnemonic = "bne";
         format = "B";
         opcode = "6";
         function = "1";
-        fragments = [ "dreg0", ":,", "sreg0", ":,", "i16" ];
+        fragments = [ "dreg0", ":,", "sreg0", ":,", "i17" ];
     },
     {
         mnemonic = "bgt";
         format = "B";
         opcode = "6";
         function = "2";
-        fragments = [ "dreg0", ":,", "sreg0", ":,", "i16" ];
+        fragments = [ "dreg0", ":,", "sreg0", ":,", "i17" ];
     },
     {
         mnemonic = "ble";
         format = "B";
         opcode = "6";
         function = "3";
-        fragments = [ "dreg0", ":,", "sreg0", ":,", "i16" ];
+        fragments = [ "dreg0", ":,", "sreg0", ":,", "i17" ];
     },
     {
         mnemonic = "blt";
         format = "B";
         opcode = "6";
         function = "4";
-        fragments = [ "dreg0", ":,", "sreg0", ":,", "i16" ];
+        fragments = [ "dreg0", ":,", "sreg0", ":,", "i17" ];
     },
     {
         mnemonic = "bge";
         format = "B";
         opcode = "6";
         function = "5";
-        fragments = [ "dreg0", ":,", "sreg0", ":,", "i16" ];
+        fragments = [ "dreg0", ":,", "sreg0", ":,", "i17" ];
     },
 
     {
