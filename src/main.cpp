@@ -4,7 +4,7 @@
 #include <string>
 
 void showUsage(std::string name) {
-    std::cerr << "Usage: " << name << " [-o <out-file>] <in-file>" << std::endl;
+    std::cerr << "Usage: " << name << " [-o <out-file>] [-s] <in-file>" << std::endl;
 }
 
 int main(int argc, char **argv) {
@@ -15,6 +15,7 @@ int main(int argc, char **argv) {
 
     std::string inFile;
     std::string outFile;
+    bool outputSymbols = false;
 
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
@@ -23,11 +24,14 @@ int main(int argc, char **argv) {
                 if (i + 1 < argc) {
                     outFile = argv[i + 1];
                 }
+                i++;
+                break;
+              case 's':
+                outputSymbols = true;
                 break;
               default:
                 std::cout << "Warning: Unrecognized flag: '" << argv[i] << "'. Ignoring." << std::endl;
             }
-            i++;
         }
         else {
             inFile = argv[i];
@@ -50,7 +54,7 @@ int main(int argc, char **argv) {
     if (!assembler.assemble("", inFile)) {
         return -1;
     }
-    if (!assembler.link()) {
+    if (!assembler.link(outputSymbols)) {
         return -1;
     }
     std::cout << "Done." << std::endl;

@@ -34,15 +34,15 @@ driver_serial_interrupt:
     andi $1, 0xff   ; isolate input byte
     lw   $4, 2($41) ; read buffer head/tail
     mov  $5, $4
-    shr  $4, 8      ; isolate head
-    andi $5, 0xf    ; isolate tail
+    shr  $5, 8      ; isolate head
+    andi $4, 0xf    ; isolate tail
     mov  $6, $4
     addi $6, 1      ; increment head
     andi $6, 0xf    ; and wrap it to the buffer size
     ; if buffer is full, move on
     beq  $6, $5, _driver_serial_interrupt_output
     addi $4, 4
-    sbr  $1, $4($41)
+    sb   $1,$4($41)
     sb   $6, 2($41)
   _driver_serial_interrupt_output:
     shr  $0, 9      ; extract "output busy" status
@@ -56,12 +56,14 @@ driver_serial_char_rx:
     lui   $2, 0xff
     ori   $2, 0xff
     adr   $4, $5, m_driver_serial
-    lw    $0, 2($42)
-    mov   $1, $0
-    shr   $0, 8
-    andi  $1, 0xf
+    lw    $0, 2($42)    ; load buffer head/tail
+    mov   $1, $0        ; 
+    shr   $1, 8         ; isolate head
+    andi  $0, 0xf       ; isolate tail
     beq   $0, $1, _driver_serial_char_rx_return
-    lbr   $2, $0($42)
+    mov   $0, $1
+    addi  $1, 4
+    lb    $2, $1($42)
     addiu $0, 1
     andi  $0, 0xf
     sb    $0, 3($42)
@@ -80,3 +82,4 @@ driver_serial_char_tx:
   _driver_serial_char_tx_return:
     mov  $2, $0
     jr   $47
+

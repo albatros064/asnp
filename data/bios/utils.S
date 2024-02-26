@@ -26,8 +26,7 @@ print_char:
     mov $1, $0
     xor $4, $4
   _print_char_tx_loop:
-    xor $0, $0
-    ori $0, 1
+    lli $0, 1
     syscall
     beq $2, $4, _print_char_tx_loop
     jr $47
@@ -36,8 +35,9 @@ print_char:
 get_char:
     xor  $0, $0
     syscall
-    xor  $5, $5
-    bgt  $2, $5, _get_char_exit
+    lui  $5, 0xff
+    ori  $5, 0xff
+    bne  $2, $5, _get_char_exit
     j get_char
   _get_char_exit:
     jr   $47

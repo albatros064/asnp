@@ -35,7 +35,7 @@ class Assembler {
         virtual ~Assembler();
 
         bool assemble(std::string, std::string);
-        bool link();
+        bool link(bool);
     private:
         std::string outFile;
 
@@ -56,7 +56,7 @@ class Assembler {
         void processDirective(Token &, std::string);
         void processInstruction(Token &);
         void processLabel(Token &);
-        void processReferences();
+        std::map<std::string, uint32_t> processReferences();
 };
 
 }; // namespace asnp

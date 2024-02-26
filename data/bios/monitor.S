@@ -3,9 +3,9 @@
 .segment ktext
 
 monitor_enter:
-    adr $0, $1, _c_monitor_welcome_message
+    adr $0, $1, sz_monitor_welcome_message
     jal print_string
-    adr $0, $1, _c_monitor_prompt
+    adr $0, $1, sz_monitor_prompt
     jal print_string
   _monitor_echo_loop:
     jal get_char
@@ -13,8 +13,8 @@ monitor_enter:
     jal print_char
     j _monitor_echo_loop
     
-_c_monitor_welcome_message:
-    .stringz "Welcome!\n"
-_c_monitor_prompt:
+sz_monitor_welcome_message:
+    .stringz "\nWelcome!\n"
+sz_monitor_prompt:
     .stringz "> "
 

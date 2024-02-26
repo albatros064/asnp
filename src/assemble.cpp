@@ -129,10 +129,18 @@ bool Assembler::assemble(std::string inDir, std::string inFile) {
     return true;
 }
 
-bool Assembler::link() {
+bool Assembler::link(bool outputSymbols) {
     try {
         std::cout << "Resolving references" << std::endl;
-        processReferences();
+        auto references = processReferences();
+
+        if (outputSymbols) {
+            std::cout << "Writing symbols" << std::endl;
+            auto symbolOut = std::ofstream(outFile + ".sym", std::ios::binary);
+            for (auto reference: references) {
+                symbolOut << "0x" << std::setw(8) << std::setfill('0') << std::hex << reference.second << " " << reference.first << std::endl;
+            }
+        }
 
         std::cout << "Writing data" << std::endl;
         auto out = std::ofstream(outFile, std::ios::binary);
@@ -616,7 +624,8 @@ void Assembler::processLabel(Token &token) {
     *segment += token.content;
 }
 
-void Assembler::processReferences() {
+std::map<std::string, uint32_t> Assembler::processReferences() {
+    std::map<std::string, uint32_t> symbols;
     for (auto segment: segments) {
         for (auto reference: segment.second->getReferences()) {
             std::string label = reference.label;
@@ -627,6 +636,8 @@ void Assembler::processReferences() {
 
             auto labelSegment = labels[label];
             uint32_t value = (*labelSegment)[label] + (uint32_t) *labelSegment;
+
+            symbols[label] = value;
 
             int bit = reference.bit;
 
@@ -642,6 +653,8 @@ void Assembler::processReferences() {
             segment.second->pack(modifiedValue, reference.width, reference.offset, bit);
         }
     }
+
+    return symbols;
 }
 
 }; // namespace asnp

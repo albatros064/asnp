@@ -74,12 +74,12 @@ exception_handler:
     xor  $1,  $1
     xch  $40, $47
     ; $47 should now contain an offset into our jump table
-    adr  $0, $1, _exception_vectors
+    adr  $0, $1, j_exception_vectors
     addu $47, $40
     jr   $47        ;  jump to the target
 
     ; 16 jump targets for individual exception handlers
-  _exception_vectors:
+  j_exception_vectors:
     j interrupt_handler        ; int
     j exception_handler_exit
     j exception_handler_exit
@@ -126,7 +126,7 @@ exception_handler_final:
     lw  $7, 14($45) ; restore $7
     mov $45, $50    ; finally put $sp back in place
     
-    mov $47, $67 ; grab eret
+    mov $47, $67 ; grab epc
     xch $47, $57 ; put $ra back, set up return jump
     eret
     jr $57       ; return jump (in eret protection slot)
@@ -141,7 +141,7 @@ interrupt_handler:
     j exception_handler_exit
 
 syscall_handler:
-    adr  $2, $3, _syscall_vectors
+    adr  $2, $3, j_syscall_vectors
     lw   $0, 0($45)
     andi $0, 3
     shl  $0, 3
@@ -149,7 +149,7 @@ syscall_handler:
     addu $41,$40
     xch  $40,$50
     jr   $41
-  _syscall_vectors:
+  j_syscall_vectors:
     jal driver_serial_char_rx ; 0: read character
     j   _syscall_cleanup
     jal driver_serial_char_tx ; 1: write character
@@ -159,7 +159,10 @@ syscall_handler:
     j   _syscall_cleanup      ; ??
     j   _syscall_cleanup
   _syscall_cleanup:
-    j exception_handler_exit
+    mov   $40, $67 ; adjust epc
+    addiu $40, 2   ; .
+    mov   $67, $40 ; .
+    j exception_handler_final
 
 .include "driver/serial.S"
 
