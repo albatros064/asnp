@@ -128,8 +128,7 @@ exception_handler_final:
     
     mov $47, $67 ; grab epc
     xch $47, $57 ; put $ra back, set up return jump
-    eret
-    jr $57       ; return jump (in eret protection slot)
+    eret $57
 
 interrupt_handler:
     xor  $1, $1

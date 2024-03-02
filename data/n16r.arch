@@ -729,10 +729,26 @@ instructions = (
         fragments = [];
     },
     {
-        mnemonic = "hlt";
+        mnemonic = "eret";
         format = "R";
         opcode = "0";
         function = "42";
+        sreg0 = "0";
+        fragments = [ "dreg4" ];
+    },
+    {
+        mnemonic = "eret";
+        format = "R";
+        opcode = "0";
+        function = "43";
+        sreg0 = "0";
+        fragments = [ "dreg5" ];
+    },
+    {
+        mnemonic = "hlt";
+        format = "R";
+        opcode = "0";
+        function = "44";
         dreg0 = "0";
         sreg0 = "0";
         fragments = [];
