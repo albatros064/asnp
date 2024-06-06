@@ -13,7 +13,7 @@ segments = (
     },
     {
         name = "kmem";
-        start = 0xfc0000;
+        start = 0x0f0000;
         size = 65536;
         fill = false;
         ephemeral = true;
@@ -774,20 +774,6 @@ instructions = (
                 );
             },
             {
-                id = 2;
-                replacements = (
-                    {
-                        source = "dreg0";
-                        dest = "dreg0";
-                    },
-                    {
-                        source = "i32";
-                        dest = "i8u";
-                        shift = 0;
-                    }
-                );
-            },
-            {
                 id = 1;
                 replacements = (
                     {
@@ -798,6 +784,20 @@ instructions = (
                         source = "i32";
                         dest = "i8u";
                         shift = 24;
+                    }
+                );
+            },
+            {
+                id = 2;
+                replacements = (
+                    {
+                        source = "dreg0";
+                        dest = "dreg0";
+                    },
+                    {
+                        source = "i32";
+                        dest = "i8u";
+                        shift = 0;
                     }
                 );
             },
