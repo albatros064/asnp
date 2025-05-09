@@ -4,7 +4,7 @@
 #include <string>
 
 void showUsage(std::string name) {
-    std::cerr << "Usage: " << name << " [-o <out-file>] [-s] <in-file>" << std::endl;
+    std::cerr << "Usage: " << name << " [-o <out-file>] [-s] [-r] <in-file>" << std::endl;
 }
 
 int main(int argc, char **argv) {
@@ -16,21 +16,26 @@ int main(int argc, char **argv) {
     std::string inFile;
     std::string outFile;
     bool outputSymbols = false;
+    bool outputRaw = false;
 
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
             switch (argv[i][1]) {
-              case 'o':
-                if (i + 1 < argc) {
-                    outFile = argv[i + 1];
-                }
+              case 'o': // set output file
                 i++;
+                if (i < argc) {
+                    outFile = argv[i];
+                }
                 break;
-              case 's':
+              case 's': // output symbol locations
                 outputSymbols = true;
+                break;
+              case 'r': // 
+                outputRaw = true;
                 break;
               default:
                 std::cout << "Warning: Unrecognized flag: '" << argv[i] << "'. Ignoring." << std::endl;
+                break;
             }
         }
         else {
@@ -48,13 +53,14 @@ int main(int argc, char **argv) {
         outFile.append(".o");
     }
 
-    //std::cout << "Assembling '" << inFile << "' into '" << outFile << "'." << std::endl;
-
     asnp::Assembler assembler(outFile);
     if (!assembler.assemble("", inFile)) {
         return -1;
     }
-    if (!assembler.link(outputSymbols)) {
+    if (!assembler.link(outputSymbols, outputRaw)) {
+        return -1;
+    }
+    if (!assembler.write(outputRaw)) {
         return -1;
     }
     std::cout << "Done." << std::endl;

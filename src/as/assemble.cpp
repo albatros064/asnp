@@ -9,6 +9,8 @@
 #include "error.h"
 #include "assemble.h"
 
+#include "../libelf/elf.h"
+
 namespace asnp {
 
 Assembler::Assembler(std::string out)
@@ -129,10 +131,10 @@ bool Assembler::assemble(std::string inDir, std::string inFile) {
     return true;
 }
 
-bool Assembler::link(bool outputSymbols) {
+bool Assembler::link(bool outputSymbols, bool forbidExternalSymbols) {
     try {
         std::cout << "Resolving references" << std::endl;
-        auto references = processReferences();
+        auto references = processReferences(!forbidExternalSymbols);
 
         if (outputSymbols) {
             std::cout << "Writing symbols" << std::endl;
@@ -141,15 +143,6 @@ bool Assembler::link(bool outputSymbols) {
                 symbolOut << "0x" << std::setw(8) << std::setfill('0') << std::hex << reference.second << " " << reference.first << std::endl;
             }
         }
-
-        std::cout << "Writing data" << std::endl;
-        auto out = std::ofstream(outFile, std::ios::binary);
-        for (auto seg: segments) {
-            if (seg.second->ephemeral) {
-                continue;
-            }
-            out.write((const char *) (*seg.second), seg.second->getSize());
-        }
     }
     catch (AssemblyError *e) {
         std::cerr << e->type << ": " << e->message << std::endl;
@@ -157,6 +150,106 @@ bool Assembler::link(bool outputSymbols) {
         return false;
     }
 
+    return true;
+}
+
+bool Assembler::write(bool raw) {
+    std::cout << "Writing data" << std::endl;
+    if (raw) {
+        // output unadorned machine code
+        auto out = std::ofstream(outFile, std::ios::binary);
+
+        for (auto seg: segments) {
+            if (seg.second->ephemeral) {
+                continue;
+            }
+            out.write(seg.second->getData(), seg.second->getSize());
+        }
+    }
+    else {
+        // output elf
+
+        libelf::ElfFile file(ET_REL);
+
+        std::shared_ptr<libelf::Section> nullSection;
+        
+        auto symbolSection = file.addSection(SHT_SYMTAB, nullSection, nullSection);
+        symbolSection->name = ".symtab";
+
+        int usedSegmentCount = 0;
+        for (auto seg: segments) {
+            auto segment = seg.second;
+
+            if (!usedSegments.contains(segment->name)) {
+                continue;
+            }
+            usedSegmentCount++;
+
+            Elf32_Word sectionType;
+            if (segment->ephemeral) {
+                sectionType = SHT_NOBITS;
+            }
+            else {
+                sectionType = SHT_PROGBITS;
+            }
+
+            Elf32_Word sectionFlags = SHF_ALLOC;
+            if (!segment->readOnly) {
+                sectionFlags |= SHF_WRITE;
+            }
+            if (segment->executable) {
+                sectionFlags |= SHF_EXECINSTR;
+            }
+
+            auto section = file.addSection(sectionType, nullSection, nullSection);
+            section->name = "." + segment->name;
+            section->header.sh_flags = sectionFlags;
+            section->header.sh_addralign = segment->align;
+            section->header.sh_addr = segment->start;
+
+            if (!segment->ephemeral) {
+                section->data = segment->getData(true);
+                section->header.sh_size = segment->getSize();
+            }
+            else {
+                section->header.sh_size = segment->getOffset();
+            }
+
+            auto labels = segment->getLabels();
+            for (auto label: labels) {
+                // all symbols are globals right now...
+                symbolSection->addSymbol(section, label.first, label.second);
+            }
+
+            if (segment->getReferences().size() == 0) {
+                continue;
+            }
+
+            auto relocSection = file.addSection(SHT_REL, symbolSection, section);
+            relocSection->header.sh_info = section->index;
+
+            for (auto reference: segment->getReferences()) {
+                if (!labels.contains(reference.label)) {
+                    // create new undefined symbol
+                    symbolSection->addSymbol(nullSection, reference.label, 0);
+                }
+                auto symbol = symbolSection->symbolMap[reference.label];
+                relocSection->addRelocation(section, symbol, reference.offset, reference.type);
+            }
+        }
+
+        if (architecture->pageSize > 0) {
+            auto pageSizeSection = file.addSection(SHT_LOPROC, nullSection, nullSection);
+            pageSizeSection->name = ".pagesize";
+            pageSizeSection->header.sh_addr= architecture->pageSize;
+        }
+
+        file.generateSymbolStrings(symbolSection);
+        file.generateSectionNameStrings();
+        file.generateSectionData();
+
+        file.write(outFile);
+    }
     return true;
 }
 
@@ -280,14 +373,26 @@ void Assembler::processDirective(Token &token, std::string directory) {
         }
         *segment = directiveArg.parseNumber(32, 0,  NumberSign::ForceUnsigned);
     }
-    else if (token.content == ".segment") {
-        Token newSegment = tokens.front();
-        tokens.pop_front();
+    else if (token.content == ".segment" || token.content == ".data" || token.content == ".text" || token.content == ".rodata" || token.content == ".bss") {
+        std::string segmentName;
 
-        if (!segments.contains(newSegment.content)) {
-            throw new SyntaxError("unrecognized segment '" + newSegment.content + "'", newSegment);
+        if (token.content == ".segment") {
+            Token newSegment = tokens.front();
+            tokens.pop_front();
+
+            if (!segments.contains(newSegment.content)) {
+                throw new SyntaxError("unrecognized segment '" + newSegment.content + "'", newSegment);
+            }
+            segmentName = newSegment.content;
         }
-        segment = segments[newSegment.content];
+        else {
+            segmentName = token.content.substr(1);
+        }
+
+        segment = segments[segmentName];
+        if (!usedSegments.contains(segmentName)) {
+            usedSegments.insert(segmentName);
+        }
     }
     else if (token.content == ".byte" || token.content == ".word" || token.content == ".dword") {
         uint32_t value = 0;
@@ -406,6 +511,7 @@ void Assembler::processInstruction(Token &token) {
     }
 
     auto fragments = architecture->fragments;
+    auto relocations = architecture->relocations;
 
     std::vector<InstructionCandidate> candidates;
     for (auto option: architecture->instructions[token.content]) {
@@ -460,7 +566,13 @@ void Assembler::processInstruction(Token &token) {
                     }
                     else if (token.type == TokenType::Identifier) {
                         value = 0;
-                        candidates[c].pendingReferences[fragment] = content;
+                        PendingReference pendingReference;
+                        pendingReference.label = content;
+                        pendingReference.shift = seg.alignment - 1;
+                        if (!seg.relocation.empty()) {
+                            pendingReference.relocation = seg.relocation;
+                        }
+                        candidates[c].pendingReferences[fragment] = pendingReference;
                     }
                     else {
                         throw new SyntaxError("unexpected token '" + content + "'. Expecting '" + fragment + "'", token);
@@ -499,6 +611,10 @@ void Assembler::processInstruction(Token &token) {
                     value <<= (seg.owidth - seg.width);
                 }
 
+                if (seg.group != "") {
+                    //candidates[c].values[seg.group] = value;
+                    fragment = seg.group;
+                }
                 candidates[c].values[fragment] = value;
             }
             catch (SyntaxError *e) {
@@ -530,8 +646,11 @@ void Assembler::processInstruction(Token &token) {
                 for (auto replacement: component.replacements) {
                     if (candidate.pendingReferences.contains(replacement.source)) {
                         componentInstruction.values[replacement.dest] = candidate.values[replacement.source];
-                        std::string newReference = std::to_string(replacement.shift) + ":";
-                        newReference += candidate.pendingReferences[replacement.source];
+                        auto newReference = candidate.pendingReferences[replacement.source];
+                        newReference.shift = replacement.shift;
+                        if (!replacement.relocation.empty()) {
+                            newReference.relocation = replacement.relocation;
+                        }
                         componentInstruction.pendingReferences[replacement.dest] = newReference;
                     }
                     else {
@@ -563,6 +682,7 @@ void Assembler::processInstruction(Token &token) {
             std::fill(std::begin(buffer), std::end(buffer), 0);
             uint32_t startingOffset = segment->getOffset();
             int bit = 0;
+int totalWidth = 0;
             for (auto fragmentName: format.fragments) {
                 uint32_t value;
                 if (values.contains(fragmentName)) {
@@ -583,26 +703,25 @@ void Assembler::processInstruction(Token &token) {
 
                 auto fragment = fragments[fragmentName];
                 if (pendingReferences.contains(fragmentName)) {
-                    std::string label = pendingReferences[fragmentName];
-                    int alignment = fragment.alignment - 1;
-                    auto splitPosition = label.find(':');
-                    if (splitPosition != std::string::npos) {
-                        alignment = std::stoi(label.substr(0, splitPosition));
-                        label = label.substr(splitPosition + 1);
-                    }
+                    auto pendingReference = pendingReferences[fragmentName];
 
+                    uint8_t relocationType = 0;
+                    if (!pendingReference.relocation.empty()) {
+                        relocationType = relocations[pendingReference.relocation].type;
+                    }
                     Reference reference;
-                    reference.label = label;
+                    reference.label  = pendingReference.label;
                     reference.offset = segment->getOffset();
                     reference.bit    = bit;
                     reference.width  = fragment.owidth;
-                    reference.shift  = alignment;
+                    reference.shift  = pendingReference.shift;
+                    reference.type = relocationType;
                     reference.relative = fragment.type == "raddress" ? startingOffset : 0;
                     if (bit != 0) {
                         reference.offset -= 1;
                     }
 
-                    *segment += reference;
+                    segment->addReference(reference);
                 }
 
                 segment->pack(value, fragment.owidth, Segment::UNDEFINED_OFFSET, bit);
@@ -621,30 +740,38 @@ void Assembler::processLabel(Token &token) {
 
     labels[token.content] = segment;
 
-    *segment += token.content;
+    segment->addLabel(token.content);
 }
 
-std::map<std::string, uint32_t> Assembler::processReferences() {
+std::map<std::string, uint32_t> Assembler::processReferences(bool onlyRelative) {
     std::map<std::string, uint32_t> symbols;
     for (auto segment: segments) {
         for (auto reference: segment.second->getReferences()) {
             std::string label = reference.label;
 
             if (!labels.contains(label)) {
+                if (onlyRelative) {
+                    continue;
+                }
+
                 throw new ReferenceError("undefined reference to '" + label + "'");
             }
 
             auto labelSegment = labels[label];
-            uint32_t value = (*labelSegment)[label] + (uint32_t) *labelSegment;
-
-            symbols[label] = value;
+            uint32_t value = labelSegment->getLabelOffset(label) + labelSegment->getStartAddress();
 
             int bit = reference.bit;
 
             uint32_t modifiedValue = value;
             if (reference.relative != 0) {
-                modifiedValue = (*labelSegment)[label] - reference.relative;
+                modifiedValue = labelSegment->getLabelOffset(label) - reference.relative;
             }
+            else if (onlyRelative) {
+                // if it's not relative, and that's what we're doing, skip it.
+                continue;
+            }
+
+            symbols[label] = value;
 
             if (reference.shift > 0) {
                 modifiedValue >>= reference.shift;

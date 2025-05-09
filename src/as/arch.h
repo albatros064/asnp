@@ -15,7 +15,9 @@ namespace arch {
 class Fragment {
     public:
         std::string name;
+        std::string group;
         std::string type;
+        std::string relocation;
         int width;
         int owidth;
         int alignment;
@@ -28,11 +30,17 @@ class Format {
         int width;
         std::list<std::string> fragments;
 };
+class Relocation {
+    public:
+        std::string name;
+        int type;
+};
 
 class FragmentReplacement {
     public:
         std::string source;
         std::string dest;
+        std::string relocation;
         int shift;
 };
 class InstructionComponent {
@@ -59,12 +67,14 @@ class Arch {
 
         std::map<std::string, Format> formats;
         std::map<std::string, Fragment> fragments;
+        std::map<std::string, Relocation> relocations;
         std::map<std::string, std::list<Instruction>> instructions;
         std::map<int32_t, Instruction> indexedInstructions;
 
         int dataWidth;
         int addressWidth;
         int addressableWidth;
+        int pageSize;
         uint32_t textAddress;
         uint32_t dataAddress;
 };

@@ -1,0 +1,150 @@
+arch: n16r
+dataWidth: 16
+addressWidth: 32
+addressableWidth: 8
+pageSize: 4096
+segments:
+  - {name: ktext,  relocatable: false, start: 0x80fe0000, size: 65536, fill: true, readOnly: true}
+  - {name: kmem,   relocatable: false, start: 0x800f0000, size: 65536, ephemeral: true}
+  - {name: text,   align: 2, start: 0x1000, executable: true, readOnly: true}
+  - {name: data,   align: 4, start: 0x1000}
+  - {name: rodata, align: 4, start: 0x1000, readOnly: true}
+  - {name: bss,    align: 4, start: 0x1000, ephemeral: true}
+relocations:
+  - {name: jmp,   type: 1}
+  - {name: byte0, type: 4}
+  - {name: byte1, type: 5}
+  - {name: byte2, type: 6}
+  - {name: byte3, type: 7}
+fragments:
+  - {name: opcode,    width:  4, type: const}
+  - {name: dreg0,     width:  3,             type: reg, group: dreg} # bank 0, 16b
+  - {name: dreg1,     width:  3, offset: 10, type: reg, group: dreg} # bank 1, 16b
+  - {name: dreg2,     width:  3, offset: 20, type: reg, group: dreg} # bank 2, 16b
+  - {name: dreg3,     width:  3, offset: 30, type: reg, group: dreg}
+  - {name: dreg4,     width:  3, offset: 40, type: reg, group: dreg} # bank 0, 32b
+  - {name: dreg5,     width:  3, offset: 50, type: reg, group: dreg} # bank 1, 32b
+  - {name: dreg6,     width:  3, offset: 60, type: reg, group: dreg} # bank 2, 32b
+  - {name: dreg7,     width:  3, offset: 70, type: reg, group: dreg}
+  - {name: sreg0,     width:  3,             type: reg, group: sreg} # bank 0, 16b
+  - {name: sreg1,     width:  3, offset: 10, type: reg, group: sreg} # bank 1, 16b
+  - {name: sreg2,     width:  3, offset: 20, type: reg, group: sreg} # bank 2, 16b
+  - {name: sreg3,     width:  3, offset: 30, type: reg, group: sreg}
+  - {name: sreg4,     width:  3, offset: 40, type: reg, group: sreg} # bank 0, 32b
+  - {name: sreg5,     width:  3, offset: 50, type: reg, group: sreg} # bank 1, 32b
+  - {name: sreg6,     width:  3, offset: 60, type: reg, group: sreg} # bank 2, 32b
+  - {name: sreg7,     width:  3, offset: 70, type: reg, group: sreg}
+  - {name: rreg,      width:  3,             type: reg} # bank 0, 16b
+  - {name: function,  width:  6, type: const}
+  - {name: function1, width:  1, type: const}
+  - {name: function3, width:  3, type: const}
+  - {name: i8u,       width:  8, type: unsigned, group: i8}
+  - {name: i8s,       width:  8, type: signed,   group: i8}
+  - {name: shamt,     width:  4, owidth: 8, right: true, offset: 1, type: unsigned, group: i8}
+  - {name: i16u,      width: 16, type: unsigned, group: i16}
+  - {name: i16s,      width: 16, type: signed,   group: i16}
+  - {name: i28,       width: 29, owidth: 28, alignment: 2, relocation: jmp, type: address}
+  - {name: i17,       width: 17, owidth: 16, alignment: 2, type: raddress}
+  - {name: i32,       width: 32, type: address}
+formats:
+  - {name: R, width: 16, fragments: [opcode, dreg0, dreg1, dreg2, dreg3, dreg4, dreg5, dreg6, dreg7, sreg0, sreg1, sreg2, sreg3, sreg4, sreg5, sreg6, sreg7, function]}
+  - {name: I, width: 16, fragments: [opcode, dreg0, dreg1, dreg2, dreg3, dreg4, dreg5, dreg6, dreg7, function1, i8u, i8s, shamt]}
+  - {name: E, width: 16, fragments: [opcode, dreg0, dreg4, sreg4, rreg, function3]}
+  - {name: M, width: 32, fragments: [opcode, dreg0, dreg4, sreg4, function, i16u, i16s]}
+  - {name: J, width: 32, fragments: [opcode, i28]}
+  - {name: B, width: 32, fragments: [opcode, dreg0, sreg0, function, i17]}
+instructions:
+  - {mnemonic: mov,     format: R, opcode:  0, function:  0,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: mov,     format: R, opcode:  0, function:  1,                     fragments: [dreg4, ":,", sreg4]}
+  - {mnemonic: xch,     format: R, opcode:  0, function:  2,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: xch,     format: R, opcode:  0, function:  3,                     fragments: [dreg4, ":,", sreg4]}
+  - {mnemonic: mov,     format: R, opcode:  0, function: 32,                     fragments: [dreg0, ":,", sreg1]}
+  - {mnemonic: mov,     format: R, opcode:  0, function: 33,                     fragments: [dreg1, ":,", sreg0]}
+  - {mnemonic: mov,     format: R, opcode:  0, function: 34,                     fragments: [dreg4, ":,", sreg5]}
+  - {mnemonic: mov,     format: R, opcode:  0, function: 35,                     fragments: [dreg5, ":,", sreg4]}
+  - {mnemonic: xch,     format: R, opcode:  0, function: 36,                     fragments: [dreg0, ":,", sreg1]}
+  - {mnemonic: xch,     format: R, opcode:  0, function: 36,                     fragments: [sreg1, ":,", dreg0]}
+  - {mnemonic: xch,     format: R, opcode:  0, function: 37,                     fragments: [dreg4, ":,", sreg5]}
+  - {mnemonic: xch,     format: R, opcode:  0, function: 37,                     fragments: [sreg5, ":,", dreg4]}
+  - {mnemonic: add,     format: R, opcode:  0, function:  8,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: addu,    format: R, opcode:  0, function:  9,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: sub,     format: R, opcode:  0, function: 10,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: subu,    format: R, opcode:  0, function: 11,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: addi,    format: I, opcode:  8, function1: 0,                     fragments: [dreg0, ":,", i8s]}
+  - {mnemonic: addiu,   format: I, opcode:  8, function1: 1,                     fragments: [dreg0, ":,", i8u]}
+  - {mnemonic: subi,    format: I, opcode:  9, function1: 0,                     fragments: [dreg0, ":,", i8s]}
+  - {mnemonic: subiu,   format: I, opcode:  9, function1: 1,                     fragments: [dreg0, ":,", i8u]}
+  - {mnemonic: add,     format: R, opcode:  0, function: 12,                     fragments: [dreg4, ":,", sreg4]}
+  - {mnemonic: addu,    format: R, opcode:  0, function: 13,                     fragments: [dreg4, ":,", sreg4]}
+  - {mnemonic: sub,     format: R, opcode:  0, function: 14,                     fragments: [dreg4, ":,", sreg4]}
+  - {mnemonic: subu,    format: R, opcode:  0, function: 15,                     fragments: [dreg4, ":,", sreg4]}
+  - {mnemonic: addiu,   format: I, opcode:  1, function1: 0,                     fragments: [dreg4, ":,", i8u]}
+  - {mnemonic: subiu,   format: I, opcode:  1, function1: 1,                     fragments: [dreg4, ":,", i8u]}
+  - {mnemonic: mult,    format: R, opcode:  0, function: 48,                     fragments: [dreg4, ":,", sreg0]}
+  - {mnemonic: multu,   format: R, opcode:  0, function: 49,                     fragments: [dreg4, ":,", sreg0]}
+  - {mnemonic: and,     format: R, opcode:  0, function: 16,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: andi,    format: I, opcode: 11, function1: 0,                     fragments: [dreg0, ":,", i8u]}
+  - {mnemonic: or,      format: R, opcode:  0, function: 17,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: ori,     format: I, opcode: 11, function1: 1,                     fragments: [dreg0, ":,", i8u], id: 2}
+  - {mnemonic: xor,     format: R, opcode:  0, function: 18,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: xori,    format: I, opcode: 12, function1: 0,                     fragments: [dreg0, ":,", i8u]}
+  - {mnemonic: nor,     format: R, opcode:  0, function: 19,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: lui,     format: I, opcode: 10, function1: 0,                     fragments: [dreg0, ":,", i8u], id: 1}
+  - {mnemonic: lli,     format: I, opcode: 10, function1: 1,                     fragments: [dreg0, ":,", i8u]}
+  - {mnemonic: shl,     format: I, opcode: 12, function1: 1,                     fragments: [dreg0, ":,", shamt]}
+  - {mnemonic: shra,    format: I, opcode: 13, function1: 0,                     fragments: [dreg0, ":,", shamt]}
+  - {mnemonic: shr,     format: I, opcode: 13, function1: 1,                     fragments: [dreg0, ":,", shamt]}
+  - {mnemonic: shfr,    format: R, opcode:  0, function: 26,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: slt,     format: R, opcode:  0, function: 20,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: sltu,    format: R, opcode:  0, function: 21,                     fragments: [dreg0, ":,", sreg0]}
+  - {mnemonic: slti,    format: I, opcode: 14, function1: 0,                     fragments: [dreg0, ":,", i8s]}
+  - {mnemonic: sltiu,   format: I, opcode: 14, function1: 1,                     fragments: [dreg0, ":,", i8s]}
+  - {mnemonic: lb,      format: M, opcode:  2, function:  0,                     fragments: [dreg0, ":,", i16s, ":(", sreg4, ":)"]}
+  - {mnemonic: lw,      format: M, opcode:  2, function:  1,                     fragments: [dreg0, ":,", i16s, ":(", sreg4, ":)"]}
+  - {mnemonic: ld,      format: M, opcode:  2, function:  2,                     fragments: [dreg4, ":,", i16s, ":(", sreg4, ":)"]}
+  - {mnemonic: sb,      format: M, opcode:  2, function:  4,                     fragments: [dreg0, ":,", i16s, ":(", sreg4, ":)"]}
+  - {mnemonic: sw,      format: M, opcode:  2, function:  5,                     fragments: [dreg0, ":,", i16s, ":(", sreg4, ":)"]}
+  - {mnemonic: sd,      format: M, opcode:  2, function:  6,                     fragments: [dreg4, ":,", i16s, ":(", sreg4, ":)"]}
+  - {mnemonic: lb,      format: E, opcode:  3, function3: 0,                     fragments: [dreg0, ":,", rreg, ":(", sreg4, ":)"]}
+  - {mnemonic: lw,      format: E, opcode:  3, function3: 1,                     fragments: [dreg0, ":,", rreg, ":(", sreg4, ":)"]}
+  - {mnemonic: ld,      format: E, opcode:  3, function3: 2,                     fragments: [dreg4, ":,", rreg, ":(", sreg4, ":)"]}
+  - {mnemonic: sb,      format: E, opcode:  3, function3: 4,                     fragments: [dreg0, ":,", rreg, ":(", sreg4, ":)"]}
+  - {mnemonic: sw,      format: E, opcode:  3, function3: 5,                     fragments: [dreg0, ":,", rreg, ":(", sreg4, ":)"]}
+  - {mnemonic: sd,      format: E, opcode:  3, function3: 6,                     fragments: [dreg4, ":,", rreg, ":(", sreg4, ":)"]}
+  - {mnemonic: jr,      format: R, opcode:  0, function: 56,           sreg0: 0, fragments: [dreg4]}
+  - {mnemonic: jr,      format: R, opcode:  0, function: 57,           sreg0: 0, fragments: [dreg5]}
+  - {mnemonic: jalr,    format: R, opcode:  0, function: 57,           sreg0: 0, fragments: [dreg4]}
+  - {mnemonic: j,       format: J, opcode: 15,                                   fragments: [i28]}
+  - {mnemonic: jal,     format: J, opcode:  7,                                   fragments: [i28]}
+  - {mnemonic: beq,     format: B, opcode:  6, function:  0,                     fragments: [dreg0, ":,", sreg0, ":,", i17]}
+  - {mnemonic: bne,     format: B, opcode:  6, function:  1,                     fragments: [dreg0, ":,", sreg0, ":,", i17]}
+  - {mnemonic: bgt,     format: B, opcode:  6, function:  2,                     fragments: [dreg0, ":,", sreg0, ":,", i17]}
+  - {mnemonic: ble,     format: B, opcode:  6, function:  3,                     fragments: [dreg0, ":,", sreg0, ":,", i17]}
+  - {mnemonic: blt,     format: B, opcode:  6, function:  4,                     fragments: [dreg0, ":,", sreg0, ":,", i17]}
+  - {mnemonic: bge,     format: B, opcode:  6, function:  5,                     fragments: [dreg0, ":,", sreg0, ":,", i17]}
+  - {mnemonic: mov,     format: R, opcode:  0, function: 24,                     fragments: [dreg0, ":,", sreg2]}
+  - {mnemonic: mov,     format: R, opcode:  0, function: 25,                     fragments: [dreg2, ":,", sreg0]}
+  - {mnemonic: mov,     format: R, opcode:  0, function: 26,                     fragments: [dreg4, ":,", sreg6]}
+  - {mnemonic: mov,     format: R, opcode:  0, function: 27,                     fragments: [dreg6, ":,", sreg4]}
+  - {mnemonic: syscall, format: R, opcode:  0, function: 40, dreg0: 0, sreg0: 0, fragments: []}
+  - {mnemonic: eret,    format: R, opcode:  0, function: 41, dreg0: 0, sreg0: 0, fragments: []}
+  - {mnemonic: eret,    format: R, opcode:  0, function: 42,           sreg0: 0, fragments: [dreg4]}
+  - {mnemonic: eret,    format: R, opcode:  0, function: 43,           sreg0: 0, fragments: [dreg5]}
+  - {mnemonic: hlt,     format: R, opcode:  0, function: 44, dreg0: 0, sreg0: 0, fragments: []}
+  - {mnemonic: ltlb,    format: R, opcode:  0, function: 45,                     fragments: [dreg4, ":,", sreg4]}
+  - {mnemonic: ftlb,    format: R, opcode:  0, function: 46,           sreg0: 0, fragments: [dreg4]}
+  - {mnemonic: ftlb,    format: R, opcode:  0, function: 47, dreg0: 0, sreg0: 0, fragments: []}
+  - mnemonic: li
+    format: composite
+    fragments: [dreg0, ":,", i16u]
+    components:
+      - {id: 1, replacements: [{source: i16u, dest: i8u, shift: 8}]}
+      - {id: 2, replacements: [{source: i16u, dest: i8u, shift: 0}]}
+  - mnemonic: adr
+    format: composite
+    fragments: [dreg0, ":,", sreg0, ":,", i32]
+    components:
+      - {id: 1, replacements: [{source: dreg0, dest: dreg0}, {source: i32, dest: i8u, relocation: byte1, shift:  8}]}
+      - {id: 1, replacements: [{source: sreg0, dest: dreg0}, {source: i32, dest: i8u, relocation: byte3, shift: 24}]}
+      - {id: 2, replacements: [{source: dreg0, dest: dreg0}, {source: i32, dest: i8u, relocation: byte0, shift:  0}]}
+      - {id: 2, replacements: [{source: sreg0, dest: dreg0}, {source: i32, dest: i8u, relocation: byte2, shift: 16}]}

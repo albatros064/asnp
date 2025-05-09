@@ -19,11 +19,18 @@ enum LineState {
     DoneState
 };
 
+class PendingReference {
+    public:
+        std::string label;
+        std::string relocation;
+        uint8_t shift;
+};
+
 class InstructionCandidate {
     public:
         arch::Instruction instruction;
         std::map<std::string, uint32_t> values;
-        std::map<std::string, std::string> pendingReferences;
+        std::map<std::string, PendingReference> pendingReferences;
 
         int matchedTokens;
         SyntaxError *error;
@@ -35,7 +42,8 @@ class Assembler {
         virtual ~Assembler();
 
         bool assemble(std::string, std::string);
-        bool link(bool);
+        bool link(bool, bool);
+        bool write(bool);
     private:
         std::string outFile;
 
@@ -49,6 +57,7 @@ class Assembler {
 
         std::map<std::string, std::shared_ptr<Segment>> segments;
         std::shared_ptr<Segment> segment;
+        std::set<std::string> usedSegments;
         std::map<std::string, std::shared_ptr<Segment>> labels;
 
         void tokenize(std::string);
@@ -56,7 +65,7 @@ class Assembler {
         void processDirective(Token &, std::string);
         void processInstruction(Token &);
         void processLabel(Token &);
-        std::map<std::string, uint32_t> processReferences();
+        std::map<std::string, uint32_t> processReferences(bool);
 };
 
 }; // namespace asnp

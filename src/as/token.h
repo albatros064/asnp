@@ -2,6 +2,7 @@
 #define TOKEN_H
 
 #include <string>
+#include <cstdint>
 
 namespace asnp {
 

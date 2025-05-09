@@ -1,0 +1,16 @@
+arch: subleq
+dataWidth: 16
+addressWidth: 16
+addressableWidth: 16
+segments:
+  - {name: text}
+  - {name: data}
+fragments:
+  - {name: src, width: 16, type: address}
+  - {name: dst, width: 16, type: address}
+  - {name: jmp, width: 16, type: address}
+formats:
+  - {name: S, width: 48, segments: ["src", "dst", "jmp"]}
+instructions:
+  - {mnemonic: subleq, format: S,                segments: [src, ":,", dst, ":,", jmp]}
+  - {mnemonic: subleq, format: S, jmp: "%next%", segments: [src, ":,", dst]}

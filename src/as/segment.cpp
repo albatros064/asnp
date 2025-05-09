@@ -1,6 +1,9 @@
+#include <cstring>
 #include "segment.h"
 
 namespace asnp {
+
+SegmentDescription::SegmentDescription(): relocatable(true), start(0), size(0), align(0), fill(false), ephemeral(false), readOnly(false), executable(false) {}
 
 SegmentDescription::SegmentDescription(const SegmentDescription& original) {
     name        = original.name;
@@ -9,11 +12,13 @@ SegmentDescription::SegmentDescription(const SegmentDescription& original) {
     fill        = original.fill;
     ephemeral   = original.ephemeral;
     readOnly    = original.readOnly;
+    executable  = original.executable;
+    align       = original.align;
 }
 
 Segment::Segment(const SegmentDescription &base):SegmentDescription(base),offset(0) {
     uint32_t allocation = size;
-    if (size > ALLOCATION_INCREMENT) {
+    if (size > ALLOCATION_INCREMENT || size == 0) {
         allocation = ALLOCATION_INCREMENT;
     }
     data.reserve(allocation);
@@ -27,7 +32,19 @@ uint8_t& Segment::operator[](uint32_t index) {
     return data[index];
 }
 
-uint32_t& Segment::operator[](std::string index) {
+char *Segment::getData(bool copy) {
+    char *segmentData = (char *) data.data();
+    if (!copy) {
+        return segmentData;
+    }
+
+    char *newSegmentData = new char[getSize()];
+
+    std::memcpy(newSegmentData, segmentData, getSize());
+    return newSegmentData;
+};
+
+uint32_t& Segment::getLabelOffset(std::string index) {
     if (!labels.contains(index)) {
         labels[index] = UNDEFINED_OFFSET;
     }
@@ -41,7 +58,7 @@ Segment& Segment::operator=(uint32_t newOffset) {
     }
     newOffset -= start;
 
-    if (newOffset > size) {
+    if (size > 0 && newOffset > size) {
         throw new SegmentError("segment '" + name + "' max size of '" + std::to_string(size) + "' exceeded");
     }
 
@@ -51,7 +68,7 @@ Segment& Segment::operator=(uint32_t newOffset) {
 }
 
 Segment& Segment::operator+=(uint8_t datum) {
-    if (offset >= size) {
+    if (size > 0 && offset >= size) {
 // throw
     }
 
@@ -60,8 +77,13 @@ Segment& Segment::operator+=(uint8_t datum) {
         if (allocation < ALLOCATION_INCREMENT) {
             allocation = ALLOCATION_INCREMENT;
         }
-        data.reserve(std::min(size, (uint32_t) (data.capacity() + allocation)));
+        allocation += data.capacity();
+        if (size > 0 && allocation > size) {
+            allocation = size;
+        }
+        data.reserve(allocation);
     }
+
     if (offset >= data.size()) {
         data.resize(offset + 1);
     }
@@ -71,16 +93,12 @@ Segment& Segment::operator+=(uint8_t datum) {
     return *this;
 }
 
-Segment& Segment::operator+=(std::string label) {
+void Segment::addLabel(std::string label) {
     labels[label] = offset;
-
-    return *this;
 }
 
-Segment& Segment::operator+=(Reference newRef) {
+void Segment::addReference(Reference newRef) {
     references.push_back(newRef);
-
-    return *this;
 }
 
 void Segment::pack(uint32_t value, int width, uint32_t byte, int &bit) {

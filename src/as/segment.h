@@ -18,20 +18,24 @@ class Reference {
         int width;
         int shift;
         uint32_t relative;
+        uint8_t type;
 };
 
 class SegmentDescription {
     public:
         static const uint32_t UNDEFINED_OFFSET = 0xffffffff;
         static const uint32_t ALLOCATION_INCREMENT = 16384;
-        SegmentDescription() {}
+        SegmentDescription();
         SegmentDescription(const SegmentDescription &);
         std::string name;
         uint32_t start;
         uint32_t size;
+        uint32_t align;
+        bool relocatable;
         bool fill;
         bool ephemeral;
         bool readOnly;
+        bool executable;
 };
 
 class Segment : public SegmentDescription {
@@ -40,21 +44,22 @@ class Segment : public SegmentDescription {
         virtual ~Segment() {}
 
         uint8_t&  operator[](uint32_t);
-        uint32_t& operator[](std::string);
+        uint32_t& getLabelOffset(std::string);
 
-        bool canPlace(int width) { return offset + width < size; }
+        bool canPlace(int width) { return size == 0 || (offset + width < size); }
         const std::list<Reference> getReferences() { return references; }
+        const std::map<std::string, uint32_t> getLabels() { return labels; }
         const uint32_t getSize() { return data.size(); }
         uint32_t getOffset() { return offset; }
         uint32_t getNext(int width) { return start + offset + width; }
 
-        operator uint32_t() { return start; }
-        operator const char *() { return (const char *) data.data(); }
+        uint32_t getStartAddress() { return start; }
+        char * getData(bool copy = false);
 
         Segment& operator=(uint32_t);       // set offset
         Segment& operator+=(uint8_t);       // place byte at current offset
-        Segment& operator+=(std::string);   // create a label at current offset
-        Segment& operator+=(Reference);     // add a reference
+        void addLabel(std::string);         // create a label at current offset
+        void addReference(Reference);       // add a reference
 
         void pack(uint32_t, int, uint32_t, int&);
     private:

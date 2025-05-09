@@ -1,0 +1,13 @@
+target_sources(asnp
+    PRIVATE
+        main.cpp
+        assemble.cpp
+        arch.cpp
+        segment.cpp
+        token.cpp
+        assemble.h
+        token.h
+        arch.h
+        error.h
+        segment.h
+)
